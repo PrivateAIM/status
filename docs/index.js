@@ -1,4 +1,5 @@
 const maxBlocks = 30;
+const statusLookbackMinutes = 45; // Configurable window for overall status badges
 
 // Resolution modes: each defines the duration of one block in milliseconds,
 // a human-readable label for tooltips, and a formatter for tooltip dates.
@@ -228,13 +229,20 @@ function normalizeData(statusLines) {
   }
 
   const validRows = rows.filter(r => r.trim().length > 0);
-  const lastTwoRows = validRows.slice(-2);
+  const lookbackMs = statusLookbackMinutes * 60000;
   let recentResults = [];
-  for (const row of lastTwoRows) {
+  
+  for (const row of validRows) {
     const parts = row.split(",");
-    const resultStr = parts[1] ? parts[1].trim() : "";
-    if (resultStr === "success") recentResults.push(1);
-    else if (resultStr === "failed" || resultStr === "failure") recentResults.push(0);
+    const dateTimeStr = parts[0];
+    const timestamp = Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT");
+    if (isNaN(timestamp)) continue;
+    
+    if (now - timestamp <= lookbackMs && now - timestamp >= 0) {
+      const resultStr = parts[1] ? parts[1].trim() : "";
+      if (resultStr === "success") recentResults.push(1);
+      else if (resultStr === "failed" || resultStr === "failure") recentResults.push(0);
+    }
   }
   relativeSlotMap.overallUptime = recentResults.length > 0 ? getAverage(recentResults) : null;
 
