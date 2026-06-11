@@ -1,9 +1,6 @@
 name: Scheduled Health Check
 
 on:
-  schedule:
-    # Offset from :00/:30 to avoid GitHub Actions high-load queuing delays
-    - cron: "9,39 * * * *"
   workflow_dispatch:
 
 permissions:

@@ -35,7 +35,7 @@ function formatSlotDate(date) {
 async function genReportLog(container, key, url) {
   let statusLines = rawLogCache[key];
   if (statusLines === undefined) {
-    const response = await fetch("logs/" + key + "_report.log");
+    const response = await fetch("logs/" + key + "_report.log?t=" + Date.now());
     statusLines = response.ok ? await response.text() : "";
     rawLogCache[key] = statusLines;
   }
@@ -339,7 +339,8 @@ function hideTooltip() {
 // ─── Messages ───────────────────────────────────────────────────────────
 async function genMessages() {
   const container = document.getElementById("messages");
-  const response = await fetch("messages.json");
+  container.innerHTML = "";
+  const response = await fetch("messages.json?t=" + Date.now());
   if (!response.ok) {
     return;
   }
@@ -370,7 +371,7 @@ async function genMessages() {
 // ─── Main report loop ───────────────────────────────────────────────────
 async function genAllReports() {
   if (configCache.length === 0) {
-    const response = await fetch("urls.cfg");
+    const response = await fetch("urls.cfg?t=" + Date.now());
     const configText = await response.text();
     configCache = configText.split("\n").filter((l) => l.includes("="));
   }
@@ -455,6 +456,8 @@ let autoRefreshInterval = null;
 
 function forceRefresh() {
   rawLogCache = {};
+  configCache = [];
+  genMessages();
   genAllReports();
 }
 
