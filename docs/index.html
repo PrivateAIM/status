@@ -29,7 +29,10 @@
       
       <main class="dashboard-content">
         <div class="intro-card">
-          <h2>End-to-End Operational Health</h2>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <h2>End-to-End Operational Health</h2>
+            <span id="overall-status-badge" class="overall-badge status-indicator-badge nodata" style="font-size: 13px; padding: 6px 14px;">Evaluating...</span>
+          </div>
           <p>
             Real-time status tracking for the FLAME federated learning and analysis platform. 
             Automated E2E connection runs occur every 30 minutes to verify authentication, 

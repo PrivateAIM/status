@@ -43,7 +43,7 @@ async function genReportLog(container, key, url) {
   const statusStream = constructStatusStream(key, url, normalized);
   container.appendChild(statusStream);
 
-  return normalized.latestTimestamp;
+  return normalized;
 }
 
 function constructStatusStream(key, url, uptimeData) {
@@ -371,15 +371,31 @@ async function genAllReports() {
   reportsEl.innerHTML = "";
 
   let globalLatestTimestamp = null;
+  let allUptimes = [];
 
   for (let ii = 0; ii < configCache.length; ii++) {
     const [key, url] = configCache[ii].split("=");
     if (!key || !url) continue;
 
-    const ts = await genReportLog(reportsEl, key, url);
+    const normalized = await genReportLog(reportsEl, key, url);
+    const ts = normalized.latestTimestamp;
     if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {
       globalLatestTimestamp = ts;
     }
+    allUptimes.push(normalized.overallUptime);
+  }
+
+  // Update overall badge
+  const badgeEl = document.getElementById("overall-status-badge");
+  if (badgeEl) {
+    const colors = allUptimes.map(u => getColor(u));
+    let overallColor = "nodata";
+    if (colors.includes("failure")) overallColor = "failure";
+    else if (colors.includes("partial")) overallColor = "partial";
+    else if (colors.includes("success")) overallColor = "success";
+
+    badgeEl.className = "overall-badge status-indicator-badge " + overallColor;
+    badgeEl.innerText = getStatusText(overallColor);
   }
 
   if (globalLatestTimestamp) {
