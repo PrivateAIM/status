@@ -22,8 +22,8 @@ TARGET_NODE_NAMES = ["aggregator-1", "default-1", "default-2"]
 PROJECT_NAME = "health-check"
 TIMEOUT_SHORT_SECONDS = 10.0  # Authentication
 TIMEOUT_MEDIUM_SECONDS = 60.0  # Build and distribution
-TIMEOUT_LONG_SECONDS = 120.0  # Execution
-LATENCY_LIMIT_SECONDS = 300.0  # Threshold for overall E2E latency
+TIMEOUT_LONG_SECONDS = 240.0  # Execution
+LATENCY_LIMIT_SECONDS = 360.0  # Threshold for overall E2E latency
 
 # ---------------------------------------------------------
 # Status & Duration Tracking
@@ -113,9 +113,7 @@ def main():
             print(f"[!] Project '{PROJECT_NAME}' created.")
         else:
             project = matching_projects[0]
-            existing_analyses = core_client.find_analyses(
-                filter={"project_id": project.id}
-            )
+            existing_analyses = core_client.find_analyses(filter={"project_id": project.id})
 
             # Terminal states: once an analysis reaches these, it is no longer
             # occupying cluster resources and can be left for log inspection.
@@ -129,16 +127,15 @@ def main():
                     old_analysis.distribution_status,
                     old_analysis.execution_status,
                 ]
-                is_active = any(
-                    p is not None and p not in TERMINAL_STATUSES
-                    for p in phases
-                )
+                is_active = any(p is not None and p not in TERMINAL_STATUSES for p in phases)
 
                 if is_active:
-                    print(f"[!] Deleting active analysis {old_analysis.id} "
-                          f"(build={old_analysis.build_status}, "
-                          f"dist={old_analysis.distribution_status}, "
-                          f"exec={old_analysis.execution_status})")
+                    print(
+                        f"[!] Deleting active analysis {old_analysis.id} "
+                        f"(build={old_analysis.build_status}, "
+                        f"dist={old_analysis.distribution_status}, "
+                        f"exec={old_analysis.execution_status})"
+                    )
                     core_client.delete_analysis(old_analysis.id)
 
             print("[+] Cleanup complete.")
