@@ -19,7 +19,7 @@ assert USERNAME, "FLAME_USERNAME is empty - set the repository secret."
 assert PASSWORD, "FLAME_PASSWORD is empty - set the repository secret."
 
 TARGET_NODE_NAMES = ["aggregator-1", "default-1", "default-2"]
-PROJECT_NAME = "performance-benchmark-suite"
+PROJECT_NAME = "health-check"
 TIMEOUT_SHORT_SECONDS = 10.0  # Authentication
 TIMEOUT_MEDIUM_SECONDS = 60.0  # Build and distribution
 TIMEOUT_LONG_SECONDS = 120.0  # Execution
@@ -36,7 +36,7 @@ statuses = {
     "distribute": "unknown",
     "execute": "unknown",
     "results": "unknown",
-    "latency": "unknown"
+    "latency": "unknown",
 }
 
 step_durations = {
@@ -45,7 +45,7 @@ step_durations = {
     "distribute": 0.0,
     "execute": 0.0,
     "results": 0.0,
-    "latency": 0.0
+    "latency": 0.0,
 }
 
 
@@ -53,22 +53,22 @@ def append_log(key: str, status: str, duration: float, date_str: str):
     log_dir = os.path.join("docs", "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f"{key}_report.log")
-    
+
     existing_lines = []
     if os.path.exists(log_path):
         with open(log_path, "r", encoding="utf-8") as f:
             existing_lines = f.readlines()
-            
+
     # Keep last 1999 lines to maintain 2000 lines max including the new one
     existing_lines = existing_lines[-1999:]
     existing_lines.append(f"{date_str}, {status}, {duration:.2f}\n")
-    
+
     with open(log_path, "w", encoding="utf-8") as f:
         f.writelines(existing_lines)
 
 
 def write_all_reports(final_statuses: dict[str, str], final_durations: dict[str, float]):
-    date_str = time.strftime('%Y-%m-%d %H:%M')
+    date_str = time.strftime("%Y-%m-%d %H:%M")
     for key in final_statuses.keys():
         append_log(key, final_statuses[key], final_durations[key], date_str)
         print(f"Logged status for {key}: {final_statuses[key]} ({final_durations[key]:.2f}s)")
@@ -84,17 +84,19 @@ def main():
         print("[*] Step 1: Authenticating with FLAME Hub...")
         t_start = time.time()
         try:
-            auth = flame_hub.auth.PasswordAuth(username=USERNAME, password=PASSWORD, base_url=AUTH_URL)
+            auth = flame_hub.auth.PasswordAuth(
+                username=USERNAME, password=PASSWORD, base_url=AUTH_URL
+            )
             core_client = flame_hub.CoreClient(base_url=CORE_URL, auth=auth)
             storage_client = flame_hub.StorageClient(base_url=STORAGE_URL, auth=auth)
-            
+
             # Test basic client functionality to confirm login
             nodes = core_client.get_nodes()
             assert len(nodes) > 0, "No nodes returned from core client."
             login_elapsed = time.time() - t_start
-            assert login_elapsed <= TIMEOUT_SHORT_SECONDS, (
-                f"Authentication took {login_elapsed:.2f}s, exceeding {TIMEOUT_SHORT_SECONDS}s limit."
-            )
+            assert (
+                login_elapsed <= TIMEOUT_SHORT_SECONDS
+            ), f"Authentication took {login_elapsed:.2f}s, exceeding {TIMEOUT_SHORT_SECONDS}s limit."
             statuses["login"] = "success"
             print("[+] Login successful.")
         finally:
@@ -117,7 +119,7 @@ def main():
 
             selected_nodes = [node for node in nodes if node.name in TARGET_NODE_NAMES]
             assert len(selected_nodes) > 0, f"Target nodes {TARGET_NODE_NAMES} not found."
-            
+
             node_ids = [str(node.id) for node in selected_nodes]
             existing_project_nodes = core_client.get_project_nodes()
             existing_node_ids = [
@@ -152,16 +154,22 @@ def main():
                     code_bucket = code_buckets[0]
                     assert code_bucket.bucket_id is not None, "Bucket ID is missing on CODE bucket."
                     break
-                assert time.time() < code_bucket_deadline, "Timeout waiting for code bucket creation."
+                assert (
+                    time.time() < code_bucket_deadline
+                ), "Timeout waiting for code bucket creation."
                 time.sleep(1.0)
 
             code_bucket_data = code_bucket.model_dump()
             code_bucket_core_id = str(code_bucket_data["id"])
-            storage_bucket_id = str(code_bucket_data.get("external_id") or code_bucket_data["bucket_id"])
+            storage_bucket_id = str(
+                code_bucket_data.get("external_id") or code_bucket_data["bucket_id"]
+            )
 
             script_name = "00_test_connection.py"
             script_path = os.path.join("flame_checks", script_name)
-            assert os.path.exists(script_path), f"Connection test script not found at: {script_path}"
+            assert os.path.exists(
+                script_path
+            ), f"Connection test script not found at: {script_path}"
 
             with open(script_path, "rb") as f:
                 script_bytes = f.read()
@@ -176,8 +184,12 @@ def main():
                 f"analysis-bucket-files?filter[analysis_bucket_id]={code_bucket_core_id}"
             )
             bucket_file_payload = response.json()["data"]
-            file_ids = [entry["id"] for entry in bucket_file_payload if entry["path"] == script_name]
-            assert len(file_ids) == 1, f"Expected exactly one entrypoint file record for {script_name}."
+            file_ids = [
+                entry["id"] for entry in bucket_file_payload if entry["path"] == script_name
+            ]
+            assert (
+                len(file_ids) == 1
+            ), f"Expected exactly one entrypoint file record for {script_name}."
 
             core_client.update_analysis_bucket_file(
                 analysis_bucket_file_id=file_ids[0],
@@ -273,7 +285,9 @@ def main():
                     payload = json.loads(payload_file.read().decode("utf-8"))
 
                 assert isinstance(payload, dict), "Parsed payload is not a JSON object dictionary."
-                assert payload.get("overall_success") is True, "Result payload reports failure or is missing success."
+                assert (
+                    payload.get("overall_success") is True
+                ), "Result payload reports failure or is missing success."
             finally:
                 if os.path.exists(result_tar_path):
                     os.remove(result_tar_path)
@@ -289,7 +303,9 @@ def main():
         current_step = "latency"
         elapsed_time = time.time() - run_start_time
         print(f"[*] Step 6: Checking total E2E latency ({elapsed_time:.2f}s)...")
-        assert elapsed_time <= LATENCY_LIMIT_SECONDS, f"Total execution time ({elapsed_time:.2f}s) exceeded limit of {LATENCY_LIMIT_SECONDS}s."
+        assert (
+            elapsed_time <= LATENCY_LIMIT_SECONDS
+        ), f"Total execution time ({elapsed_time:.2f}s) exceeded limit of {LATENCY_LIMIT_SECONDS}s."
         statuses["latency"] = "success"
         print("[+] Latency threshold check passed.")
 
@@ -299,7 +315,7 @@ def main():
     finally:
         # Calculate final latency (total E2E run duration)
         step_durations["latency"] = time.time() - run_start_time
-        
+
         # Write reports to logs under logs/ directory.
         print("[*] Writing health status reports...")
         write_all_reports(statuses, step_durations)

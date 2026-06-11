@@ -1,21 +1,55 @@
-const maxDays = 30;
+const maxBlocks = 30;
 
+// Resolution modes: each defines the duration of one block in milliseconds,
+// a human-readable label for tooltips, and a formatter for tooltip dates.
+const resolutions = {
+  "1d":    { ms: 24 * 3600 * 1000, label: "1 day" },
+  "6h":    { ms:  6 * 3600 * 1000, label: "6 hours" },
+  "30min": { ms:      30 * 60000,  label: "30 min" },
+};
+
+let currentResolution = "1d";
+
+// Cached raw log text per key so we can re-render without re-fetching.
+let rawLogCache = {};
+// Cached config lines so we can rebuild the report section.
+let configCache = [];
+
+function getSlotMs() {
+  return resolutions[currentResolution].ms;
+}
+
+// ─── Tooltip date formatting ────────────────────────────────────────────
+function formatSlotDate(date) {
+  if (currentResolution === "1d") {
+    return date.toDateString();
+  }
+  return date.toLocaleString(undefined, {
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// ─── Report generation ──────────────────────────────────────────────────
 async function genReportLog(container, key, url) {
-  const response = await fetch("logs/" + key + "_report.log");
-  let statusLines = "";
-  if (response.ok) {
-    statusLines = await response.text();
+  let statusLines = rawLogCache[key];
+  if (statusLines === undefined) {
+    const response = await fetch("logs/" + key + "_report.log");
+    statusLines = response.ok ? await response.text() : "";
+    rawLogCache[key] = statusLines;
   }
 
   const normalized = normalizeData(statusLines);
   const statusStream = constructStatusStream(key, url, normalized);
   container.appendChild(statusStream);
+
+  return normalized.latestTimestamp;
 }
 
 function constructStatusStream(key, url, uptimeData) {
   let streamContainer = templatize("statusStreamContainerTemplate");
-  for (var ii = maxDays - 1; ii >= 0; ii--) {
-    let line = constructStatusLine(key, ii, uptimeData[ii]);
+  for (var ii = maxBlocks - 1; ii >= 0; ii--) {
+    let line = constructStatusBlock(key, ii, uptimeData[ii]);
     streamContainer.appendChild(line);
   }
 
@@ -33,7 +67,7 @@ function constructStatusStream(key, url, uptimeData) {
     color: color,
     status: getStatusText(color),
     upTime: uptimeData.upTime,
-    upDays: uptimeData.daysWithData + "d",
+    upDays: uptimeData.coveredLabel,
     latestDuration: durationText,
   });
 
@@ -41,11 +75,13 @@ function constructStatusStream(key, url, uptimeData) {
   return container;
 }
 
-function constructStatusLine(key, relDay, dayData) {
-  let date = new Date();
-  date.setDate(date.getDate() - relDay);
+function constructStatusBlock(key, relSlot, slotData) {
+  const slotMs = getSlotMs();
+  const now = Date.now();
+  const slotEnd = now - relSlot * slotMs;
+  const date = new Date(slotEnd);
 
-  return constructStatusSquare(key, date, dayData);
+  return constructStatusSquare(key, date, slotData);
 }
 
 function getColor(uptimeVal) {
@@ -58,9 +94,9 @@ function getColor(uptimeVal) {
     : "partial";
 }
 
-function constructStatusSquare(key, date, dayData) {
-  const uptimeVal = dayData ? dayData.uptime : null;
-  const durationVal = dayData ? dayData.duration : null;
+function constructStatusSquare(key, date, slotData) {
+  const uptimeVal = slotData ? slotData.uptime : null;
+  const durationVal = slotData ? slotData.duration : null;
   const color = getColor(uptimeVal);
 
   let square = templatize("statusSquareTemplate", {
@@ -132,18 +168,18 @@ function getStatusDescriptiveText(color) {
   return color == "nodata"
     ? "No Data Available: Health check was not performed."
     : color == "success"
-    ? "No downtime recorded on this day."
+    ? "No downtime recorded in this period."
     : color == "failure"
-    ? "Major outages recorded on this day."
+    ? "Major outages recorded in this period."
     : color == "partial"
-    ? "Partial outages recorded on this day."
+    ? "Partial outages recorded in this period."
     : "Unknown";
 }
 
 function getTooltip(key, date, color, duration) {
   let statusText = getStatusText(color);
   const durText = duration !== null && duration !== undefined ? ` (${duration.toFixed(1)}s)` : "";
-  return `${key} | ${date.toDateString()} : ${statusText}${durText}`;
+  return `${key} | ${formatSlotDate(date)} : ${statusText}${durText}`;
 }
 
 function create(tag, className) {
@@ -152,39 +188,91 @@ function create(tag, className) {
   return element;
 }
 
+// ─── Data normalization ─────────────────────────────────────────────────
+// Buckets log rows into relative time slots of configurable width.
 function normalizeData(statusLines) {
   const rows = statusLines.split("\n");
-  const dateNormalized = splitRowsByDate(rows);
+  const parsedRows = parseRows(rows);
 
-  let relativeDateMap = {};
+  const slotMs = getSlotMs();
   const now = Date.now();
-  // Uptime is computed only over days inside the display window that
-  // actually have log entries; daysWithData is the covered period.
-  let sum = 0,
-    count = 0,
-    daysWithData = 0;
-  for (const [key, val] of Object.entries(dateNormalized)) {
-    if (key == "latestDuration") {
-      continue;
+
+  let relativeSlotMap = {};
+  let sum = 0, count = 0, slotsWithData = 0;
+
+  for (const entry of parsedRows) {
+    const age = now - entry.timestamp;
+    if (age < 0) continue;
+    const relSlot = Math.floor(age / slotMs);
+    if (relSlot >= maxBlocks) continue;
+
+    if (!relativeSlotMap[relSlot]) {
+      relativeSlotMap[relSlot] = { results: [], durations: [] };
     }
 
-    const relDays = getRelativeDays(now, new Date(key).getTime());
-    relativeDateMap[relDays] = {
-      uptime: getAverage(val.results),
-      duration: getAverage(val.durations),
-    };
-
-    if (relDays < maxDays && val.results.length > 0) {
-      daysWithData++;
-      sum += val.results.reduce((a, b) => a + b, 0);
-      count += val.results.length;
+    relativeSlotMap[relSlot].results.push(entry.result);
+    if (entry.duration !== null) {
+      relativeSlotMap[relSlot].durations.push(entry.duration);
     }
   }
 
-  relativeDateMap.upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
-  relativeDateMap.daysWithData = daysWithData;
-  relativeDateMap.latestDuration = dateNormalized.latestDuration;
-  return relativeDateMap;
+  // Aggregate each slot
+  for (const [slot, data] of Object.entries(relativeSlotMap)) {
+    slotsWithData++;
+    sum += data.results.reduce((a, b) => a + b, 0);
+    count += data.results.length;
+
+    relativeSlotMap[slot] = {
+      uptime: getAverage(data.results),
+      duration: getAverage(data.durations),
+    };
+  }
+
+  relativeSlotMap.upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
+  relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
+  relativeSlotMap.latestDuration = parsedRows.length > 0 ? parsedRows[parsedRows.length - 1].duration : null;
+  relativeSlotMap.latestTimestamp = parsedRows.length > 0 ? new Date(parsedRows[parsedRows.length - 1].timestamp) : null;
+  return relativeSlotMap;
+}
+
+// Formats the "covered period" label based on current resolution.
+function formatCoveredLabel(slotsWithData) {
+  if (currentResolution === "1d") {
+    return slotsWithData + "d";
+  }
+  const totalHours = slotsWithData * (getSlotMs() / 3600000);
+  if (totalHours >= 24) {
+    return (totalHours / 24).toFixed(1) + "d";
+  }
+  return totalHours.toFixed(1) + "h";
+}
+
+function parseRows(rows) {
+  let entries = [];
+  for (var ii = 0; ii < rows.length; ii++) {
+    const row = rows[ii];
+    if (!row) continue;
+
+    const parts = row.split(",");
+    const dateTimeStr = parts[0];
+    const resultStr = parts[1] ? parts[1].trim() : "";
+    const duration = parts[2] ? parseFloat(parts[2].trim()) : null;
+
+    const timestamp = Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT");
+    if (isNaN(timestamp)) continue;
+
+    // "unknown" means the step never ran (an earlier step failed);
+    // exclude it from uptime statistics instead of counting it as failure.
+    if (resultStr == "unknown") continue;
+
+    let result = resultStr == "success" ? 1 : 0;
+    entries.push({
+      timestamp: timestamp,
+      result: result,
+      duration: duration !== null && !isNaN(duration) ? duration : null,
+    });
+  }
+  return entries;
 }
 
 function getAverage(arr) {
@@ -198,62 +286,14 @@ function getAverage(arr) {
   return valid.reduce((a, b) => a + b, 0) / valid.length;
 }
 
-function getRelativeDays(date1, date2) {
-  return Math.floor(Math.abs((date1 - date2) / (24 * 3600 * 1000)));
-}
-
-function splitRowsByDate(rows) {
-  let dateValues = {};
-  let latestDuration = null;
-
-  for (var ii = 0; ii < rows.length; ii++) {
-    const row = rows[ii];
-    if (!row) {
-      continue;
-    }
-
-    const parts = row.split(",");
-    const dateTimeStr = parts[0];
-    const resultStr = parts[1] ? parts[1].trim() : "";
-    const duration = parts[2] ? parseFloat(parts[2].trim()) : null;
-
-    // "unknown" means the step never ran (an earlier step failed);
-    // exclude it from uptime statistics instead of counting it as failure.
-    if (resultStr == "unknown") {
-      continue;
-    }
-
-    const dateTime = new Date(Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT"));
-    const dateStr = dateTime.toDateString();
-
-    let dayData = dateValues[dateStr];
-    if (!dayData) {
-      dayData = { results: [], durations: [] };
-      dateValues[dateStr] = dayData;
-    }
-
-    let result = 0;
-    if (resultStr == "success") {
-      result = 1;
-    }
-    dayData.results.push(result);
-    if (duration !== null && !isNaN(duration)) {
-      dayData.durations.push(duration);
-      latestDuration = duration;
-    }
-  }
-
-  dateValues.latestDuration = latestDuration;
-  return dateValues;
-}
-
+// ─── Tooltip ────────────────────────────────────────────────────────────
 let tooltipTimeout = null;
 function showTooltip(element, key, date, color, duration) {
   clearTimeout(tooltipTimeout);
   const toolTipDiv = document.getElementById("tooltip");
 
-  document.getElementById("tooltipDateTime").innerText = date.toDateString();
-  
+  document.getElementById("tooltipDateTime").innerText = formatSlotDate(date);
+
   let descText = getStatusDescriptiveText(color);
   if (duration !== null && duration !== undefined && color === "success") {
     descText += ` Average run duration: ${duration.toFixed(1)}s.`;
@@ -278,6 +318,7 @@ function hideTooltip() {
   }, 1000);
 }
 
+// ─── Messages ───────────────────────────────────────────────────────────
 async function genMessages() {
   const container = document.getElementById("messages");
   const response = await fetch("messages.json");
@@ -308,17 +349,68 @@ async function genMessages() {
   }
 }
 
+// ─── Main report loop ───────────────────────────────────────────────────
 async function genAllReports() {
-  const response = await fetch("urls.cfg");
-  const configText = await response.text();
-  const configLines = configText.split("\n");
-  for (let ii = 0; ii < configLines.length; ii++) {
-    const configLine = configLines[ii];
-    const [key, url] = configLine.split("=");
-    if (!key || !url) {
-      continue;
-    }
+  if (configCache.length === 0) {
+    const response = await fetch("urls.cfg");
+    const configText = await response.text();
+    configCache = configText.split("\n").filter((l) => l.includes("="));
+  }
 
-    await genReportLog(document.getElementById("reports"), key, url);
+  const reportsEl = document.getElementById("reports");
+  reportsEl.innerHTML = "";
+
+  let globalLatestTimestamp = null;
+
+  for (let ii = 0; ii < configCache.length; ii++) {
+    const [key, url] = configCache[ii].split("=");
+    if (!key || !url) continue;
+
+    const ts = await genReportLog(reportsEl, key, url);
+    if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {
+      globalLatestTimestamp = ts;
+    }
+  }
+
+  if (globalLatestTimestamp) {
+    const lastCheckEl = document.getElementById("last-check-info");
+    if (lastCheckEl) {
+      lastCheckEl.innerText = "Last check performed: " + globalLatestTimestamp.toLocaleString();
+    }
+  }
+}
+
+// ─── Resolution toggle ─────────────────────────────────────────────────
+function initResolutionToggle() {
+  const buttons = document.querySelectorAll(".res-btn");
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const newRes = btn.dataset.resolution;
+      if (newRes === currentResolution) return;
+
+      currentResolution = newRes;
+      buttons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      // Update the window description text
+      updateWindowLabel();
+
+      // Re-render all reports with new resolution
+      genAllReports();
+    });
+  });
+  updateWindowLabel();
+}
+
+function updateWindowLabel() {
+  const el = document.getElementById("resolution-window-label");
+  if (!el) return;
+
+  const totalMs = maxBlocks * getSlotMs();
+  const totalHours = totalMs / 3600000;
+  if (totalHours >= 24) {
+    el.innerText = "Window: " + (totalHours / 24).toFixed(totalHours % 24 === 0 ? 0 : 1) + " days";
+  } else {
+    el.innerText = "Window: " + totalHours + " hours";
   }
 }

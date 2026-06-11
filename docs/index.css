@@ -316,6 +316,63 @@ body.dark-theme .card:hover {
   color: var(--text-muted);
 }
 
+/* Resolution Toggle */
+.resolution-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.resolution-toggle {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: var(--card-shadow);
+}
+
+.res-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.res-btn:hover {
+  background-color: rgba(15, 23, 42, 0.04);
+  color: var(--text-main);
+}
+
+body.dark-theme .res-btn:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.res-btn.active {
+  background-color: var(--accent-color);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+body.dark-theme .res-btn.active {
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+
+.resolution-window-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
 /* Reports Container */
 .reportContainer {
   display: flex;

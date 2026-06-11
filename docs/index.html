@@ -35,6 +35,17 @@
             Automated E2E connection runs occur every 30 minutes to verify authentication, 
             code upload, secure distribution, node execution, and results aggregation.
           </p>
+          <p id="last-check-info" style="font-weight: 500; font-size: 0.9em; color: var(--text-muted, #666); margin: 0;"></p>
+        </div>
+        
+        <!-- Resolution Toggle -->
+        <div class="resolution-bar">
+          <div class="resolution-toggle" id="resolution-toggle">
+            <button class="res-btn active" data-resolution="1d">1 Day</button>
+            <button class="res-btn" data-resolution="6h">6 Hours</button>
+            <button class="res-btn" data-resolution="30min">30 Min</button>
+          </div>
+          <span class="resolution-window-label" id="resolution-window-label"></span>
         </div>
         
         <!-- Manual messages (maintenance / incident notices from messages.json) -->
@@ -140,6 +151,7 @@
       }
 
       initTheme();
+      initResolutionToggle();
       genMessages();
       genAllReports();
     </script>
