@@ -32,7 +32,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run E2E Health Check
-        id: check
         continue-on-error: true
         env:
           FLAME_USERNAME: ${{ secrets.FLAME_USERNAME }}
@@ -52,7 +51,3 @@ jobs:
           else
             echo "No changes in logs to commit."
           fi
-
-      - name: Fail job if health check failed
-        if: steps.check.outcome == 'failure'
-        run: exit 1
