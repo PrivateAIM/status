@@ -68,7 +68,7 @@ def append_log(key: str, status: str, duration: float, date_str: str):
 
 
 def write_all_reports(final_statuses: dict[str, str], final_durations: dict[str, float]):
-    date_str = time.strftime("%Y-%m-%d %H:%M")
+    date_str = time.strftime("%Y-%m-%d %H:%M", time.gmtime())
     for key in final_statuses.keys():
         append_log(key, final_statuses[key], final_durations[key], date_str)
         print(f"Logged status for {key}: {final_statuses[key]} ({final_durations[key]:.2f}s)")
@@ -103,20 +103,53 @@ def main():
             step_durations["login"] = time.time() - t_start
 
         # ---------------------------------------------------------
+        # Step 1.5: Cleanup (Kill stale analyses from previous runs)
+        # ---------------------------------------------------------
+        print("[*] Step 1.5: Cleaning up previous analyses...")
+        projects = core_client.find_projects(name=PROJECT_NAME)
+        matching_projects = [p for p in projects if p.name == PROJECT_NAME]
+        if len(matching_projects) == 0:
+            project = core_client.create_project(name=PROJECT_NAME)
+            print(f"[!] Project '{PROJECT_NAME}' created.")
+        else:
+            project = matching_projects[0]
+            existing_analyses = core_client.find_analyses(
+                filter={"project_id": project.id}
+            )
+
+            # Terminal states: once an analysis reaches these, it is no longer
+            # occupying cluster resources and can be left for log inspection.
+            TERMINAL_STATUSES = {"finished", "failed"}
+
+            for old_analysis in existing_analyses:
+                # An analysis is considered active if any of its pipeline
+                # phases is in a non-terminal, non-None state.
+                phases = [
+                    old_analysis.build_status,
+                    old_analysis.distribution_status,
+                    old_analysis.execution_status,
+                ]
+                is_active = any(
+                    p is not None and p not in TERMINAL_STATUSES
+                    for p in phases
+                )
+
+                if is_active:
+                    print(f"[!] Deleting active analysis {old_analysis.id} "
+                          f"(build={old_analysis.build_status}, "
+                          f"dist={old_analysis.distribution_status}, "
+                          f"exec={old_analysis.execution_status})")
+                    core_client.delete_analysis(old_analysis.id)
+
+            print("[+] Cleanup complete.")
+
+        # ---------------------------------------------------------
         # Step 2: Upload (Project and Script Setup)
         # ---------------------------------------------------------
         print("[*] Step 2: Resolving Project & Nodes...")
         current_step = "upload"
         t_start = time.time()
         try:
-            projects = core_client.find_projects(name=PROJECT_NAME)
-            matching_projects = [p for p in projects if p.name == PROJECT_NAME]
-            if len(matching_projects) == 0:
-                project = core_client.create_project(name=PROJECT_NAME)
-                print(f"[!] Project '{PROJECT_NAME}' created.")
-            else:
-                project = matching_projects[0]
-
             selected_nodes = [node for node in nodes if node.name in TARGET_NODE_NAMES]
             assert len(selected_nodes) > 0, f"Target nodes {TARGET_NODE_NAMES} not found."
 

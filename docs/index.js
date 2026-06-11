@@ -8,7 +8,7 @@ const resolutions = {
   "30min": { ms:      30 * 60000,  label: "30 min" },
 };
 
-let currentResolution = "1d";
+let currentResolution = "30min";
 
 // Cached raw log text per key so we can re-render without re-fetching.
 let rawLogCache = {};
