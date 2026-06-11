@@ -1,6 +1,10 @@
 const maxBlocks = 30;
 const statusLookbackMinutes = 45; // Configurable window for overall status badges
 
+// Health check logs are committed by the bot to the `data` branch (kept
+// separate from `main` so automated commits don't spam the source history).
+const logBaseUrl = "https://raw.githubusercontent.com/not-a-feature/FLAME-Status/data/docs/logs/";
+
 // Resolution modes: each defines the duration of one block in milliseconds,
 // a human-readable label for tooltips, and a formatter for tooltip dates.
 const resolutions = {
@@ -35,7 +39,7 @@ function formatSlotDate(date) {
 async function genReportLog(container, key, url) {
   let statusLines = rawLogCache[key];
   if (statusLines === undefined) {
-    const response = await fetch("logs/" + key + "_report.log?t=" + Date.now());
+    const response = await fetch(logBaseUrl + key + "_report.log?t=" + Date.now());
     statusLines = response.ok ? await response.text() : "";
     rawLogCache[key] = statusLines;
   }

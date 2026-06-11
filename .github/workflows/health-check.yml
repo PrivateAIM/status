@@ -19,6 +19,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # Health check logs live on the `data` branch, kept separate from
+      # `main` so the bot's frequent commits don't spam the source history.
+      - name: Checkout data branch
+        uses: actions/checkout@v5
+        with:
+          ref: data
+          path: data-branch
+
+      - name: Restore logs from data branch
+        run: |
+          mkdir -p docs/logs
+          cp data-branch/docs/logs/*.log docs/logs/
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -40,12 +53,14 @@ jobs:
       - name: Commit and Push log changes
         if: always()
         run: |
+          cp docs/logs/*.log data-branch/docs/logs/
+          cd data-branch
           git config --local user.name 'github-actions[bot]'
           git config --local user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add docs/logs/
           if ! git diff --cached --quiet; then
             git commit -m "[Automated] Update E2E Health Check Logs"
-            git pull --rebase origin ${{ github.ref_name }}
+            git pull --rebase origin data
             git push
           else
             echo "No changes in logs to commit."
