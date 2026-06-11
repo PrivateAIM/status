@@ -14,6 +14,9 @@ CORE_URL = "https://core.staging.privateaim.net"
 STORAGE_URL = "https://storage.staging.privateaim.net"
 USERNAME = os.environ["FLAME_USERNAME"]
 PASSWORD = os.environ["FLAME_PASSWORD"]
+# Unset GitHub secrets expand to empty strings rather than missing env vars.
+assert USERNAME, "FLAME_USERNAME is empty - set the repository secret."
+assert PASSWORD, "FLAME_PASSWORD is empty - set the repository secret."
 
 TARGET_NODE_NAMES = ["aggregator-1", "default-1", "default-2"]
 PROJECT_NAME = "performance-benchmark-suite"
@@ -47,7 +50,7 @@ step_durations = {
 
 
 def append_log(key: str, status: str, duration: float, date_str: str):
-    log_dir = "logs"
+    log_dir = os.path.join("docs", "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f"{key}_report.log")
     

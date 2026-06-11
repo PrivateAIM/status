@@ -21,20 +21,20 @@ Each run executes [`flame_health_check.py`](flame_health_check.py), which perfor
 
 If a step fails, all subsequent steps are recorded as `unknown` (shown as "no data" on the page, excluded from uptime statistics).
 
-Results are appended as `date, status, duration` lines to `logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`index.html` / `index.js`) renders the last 30 days per check, including run durations.
+Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders the last 30 days per check, including run durations.
 
 ## Setup
 
 1. **Repository secrets** (Settings → Secrets and variables → Actions):
    - `FLAME_USERNAME` / `FLAME_PASSWORD` — Hub credentials (required).
    The Hub endpoints (`*.staging.privateaim.net`) are hardcoded at the top of `flame_health_check.py`.
-2. **GitHub Pages**: Settings → Pages → deploy from the `main` branch (root).
-3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the display links in `urls.cfg`.
+2. **GitHub Pages**: Settings → Pages → deploy from the `main` branch, `/docs` folder.
+3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the display links in `docs/urls.cfg`.
 4. Trigger a first run manually via the *Scheduled Health Check* workflow (`workflow_dispatch`).
 
 ## Manual messages
 
-Maintenance or incident notices can be posted by editing [`messages.json`](messages.json) (e.g. directly in the GitHub web editor). Each entry is rendered as a banner above the status cards, newest first:
+Maintenance or incident notices can be posted by editing [`docs/messages.json`](docs/messages.json) (e.g. directly in the GitHub web editor). Each entry is rendered as a banner above the status cards, newest first:
 
 ```json
 [
