@@ -45,25 +45,35 @@ async function genReportLog(container, key, url) {
   }
 
   const normalized = normalizeData(statusLines);
-  const statusStream = constructStatusStream(key, url, normalized);
-  container.appendChild(statusStream);
+
+  // Update an already-rendered report in place so refreshes don't flash
+  // the whole status stream; only create the DOM once per key.
+  let reportEl = container.querySelector('[data-report-key="' + key + '"]');
+  if (reportEl) {
+    updateStatusContainer(reportEl, normalized);
+  } else {
+    reportEl = constructStatusStream(key, url, normalized);
+    container.appendChild(reportEl);
+  }
 
   return normalized;
+}
+
+function formatDurationText(latestDuration) {
+  return latestDuration !== null && latestDuration !== undefined
+    ? `Latest run: ${latestDuration.toFixed(1)}s`
+    : "Latest run: --";
 }
 
 function constructStatusStream(key, url, uptimeData) {
   let streamContainer = templatize("statusStreamContainerTemplate");
   for (var ii = maxBlocks - 1; ii >= 0; ii--) {
-    let line = constructStatusBlock(key, ii, uptimeData[ii]);
-    streamContainer.appendChild(line);
+    let square = constructStatusSquare(key, ii, uptimeData[ii]);
+    streamContainer.appendChild(square);
   }
 
   const lastUptime = uptimeData.overallUptime;
   const color = getColor(lastUptime);
-
-  const durationText = uptimeData.latestDuration !== null && uptimeData.latestDuration !== undefined
-    ? `Latest run: ${uptimeData.latestDuration.toFixed(1)}s`
-    : "Latest run: --";
 
   const container = templatize("statusContainerTemplate", {
     title: key,
@@ -72,20 +82,33 @@ function constructStatusStream(key, url, uptimeData) {
     status: getStatusText(color),
     upTime: uptimeData.upTime,
     upDays: uptimeData.coveredLabel,
-    latestDuration: durationText,
+    latestDuration: formatDurationText(uptimeData.latestDuration),
   });
 
+  container.dataset.reportKey = key;
   container.appendChild(streamContainer);
   return container;
 }
 
-function constructStatusBlock(key, relSlot, slotData) {
-  const slotMs = getSlotMs();
-  const now = Date.now();
-  const slotEnd = now - relSlot * slotMs;
-  const date = new Date(slotEnd);
+// Refreshes an existing report card with new data, updating only the
+// badge, uptime line and individual squares rather than rebuilding the DOM.
+function updateStatusContainer(reportEl, uptimeData) {
+  const color = getColor(uptimeData.overallUptime);
 
-  return constructStatusSquare(key, date, slotData);
+  const badge = reportEl.querySelector(".status-indicator-badge");
+  badge.className = "status-indicator-badge " + color;
+  badge.innerText = getStatusText(color);
+
+  const uptimeEl = reportEl.querySelector(".statusUptime");
+  uptimeEl.innerText =
+    formatDurationText(uptimeData.latestDuration) +
+    "  •  " +
+    uptimeData.upTime + " uptime (" + uptimeData.coveredLabel + ")";
+
+  reportEl.querySelectorAll(".statusSquare").forEach((square) => {
+    const relSlot = parseInt(square.dataset.slot, 10);
+    applySquareData(square, uptimeData[relSlot]);
+  });
 }
 
 function getColor(uptimeVal) {
@@ -98,23 +121,39 @@ function getColor(uptimeVal) {
     : "partial";
 }
 
-function constructStatusSquare(key, date, slotData) {
+function constructStatusSquare(key, relSlot, slotData) {
+  let square = templatize("statusSquareTemplate");
+  square.dataset.slot = relSlot;
+  square.dataset.key = key;
+  applySquareData(square, slotData);
+
+  square.addEventListener("mouseover", () => showTooltipForSquare(square));
+  square.addEventListener("mousedown", () => showTooltipForSquare(square));
+  square.addEventListener("mouseout", hideTooltip);
+  return square;
+}
+
+// Updates a square's color and stored data without touching the DOM
+// structure, so refreshes don't recreate/flash the status stream.
+function applySquareData(square, slotData) {
   const uptimeVal = slotData ? slotData.uptime : null;
   const durationVal = slotData ? slotData.duration : null;
   const color = getColor(uptimeVal);
 
-  let square = templatize("statusSquareTemplate", {
-    color: color,
-    tooltip: getTooltip(key, date, color, durationVal),
-  });
+  square.className = "statusSquare " + color;
+  square.dataset.status = color;
+  square.dataset.duration = durationVal !== null && durationVal !== undefined ? durationVal : "";
+}
 
-  const show = () => {
-    showTooltip(square, key, date, color, durationVal);
-  };
-  square.addEventListener("mouseover", show);
-  square.addEventListener("mousedown", show);
-  square.addEventListener("mouseout", hideTooltip);
-  return square;
+// Recomputes the slot's date from "now" so tooltips stay accurate even on
+// squares that were created during an earlier refresh.
+function showTooltipForSquare(square) {
+  const relSlot = parseInt(square.dataset.slot, 10);
+  const date = new Date(Date.now() - relSlot * getSlotMs());
+  const key = square.dataset.key;
+  const color = square.dataset.status;
+  const duration = square.dataset.duration ? parseFloat(square.dataset.duration) : null;
+  showTooltip(square, key, date, color, duration);
 }
 
 let cloneId = 0;
@@ -178,12 +217,6 @@ function getStatusDescriptiveText(color) {
     : color == "partial"
     ? "Partial outages recorded in this period."
     : "Unknown";
-}
-
-function getTooltip(key, date, color, duration) {
-  let statusText = getStatusText(color);
-  const durText = duration !== null && duration !== undefined ? ` (${duration.toFixed(1)}s)` : "";
-  return `${key} | ${formatSlotDate(date)} : ${statusText}${durText}`;
 }
 
 function create(tag, className) {
@@ -327,9 +360,26 @@ function showTooltip(element, key, date, color, duration) {
   statusDiv.className = color;
 
   const rect = element.getBoundingClientRect();
+  const tooltipWidth = toolTipDiv.offsetWidth;
+
+  // Center the tooltip on the square, but clamp it to the viewport so it
+  // doesn't overflow off-screen on narrow/mobile viewports.
+  const margin = 8;
+  const viewportWidth = document.documentElement.clientWidth;
+  const idealLeft = rect.left + window.scrollX + rect.width / 2 - tooltipWidth / 2;
+  const minLeft = window.scrollX + margin;
+  const maxLeft = window.scrollX + viewportWidth - tooltipWidth - margin;
+  const left = Math.min(Math.max(idealLeft, minLeft), maxLeft);
+
   toolTipDiv.style.top = rect.bottom + window.scrollY + 10 + "px";
-  toolTipDiv.style.left =
-    rect.left + window.scrollX + rect.width / 2 - toolTipDiv.offsetWidth / 2 + "px";
+  toolTipDiv.style.left = left + "px";
+
+  // Re-point the arrow at the square's center, since the tooltip box may
+  // have been shifted away from being centered on it.
+  const squareCenter = rect.left + window.scrollX + rect.width / 2;
+  const arrow = document.getElementById("tooltipArrow");
+  arrow.style.left = Math.min(Math.max(squareCenter - left, 12), tooltipWidth - 12) + "px";
+
   toolTipDiv.style.opacity = "1";
 }
 
@@ -381,7 +431,6 @@ async function genAllReports() {
   }
 
   const reportsEl = document.getElementById("reports");
-  reportsEl.innerHTML = "";
 
   let globalLatestTimestamp = null;
   let allUptimes = [];

@@ -472,7 +472,7 @@ body.dark-theme .res-btn.active {
   height: 32px;
   min-width: 6px;
   width: 100%;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s, background-color 0.3s ease;
   cursor: pointer;
 }
 
@@ -521,6 +521,7 @@ body.dark-theme .statusSquare:hover {
   padding: 14px 18px;
   z-index: 100;
   width: 260px;
+  max-width: calc(100vw - 16px);
   text-align: left;
   pointer-events: none;
   transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
