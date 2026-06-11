@@ -564,7 +564,29 @@ body.dark-theme .tooltip {
     padding: 10px;
     margin: 20px auto;
   }
-  
+
+  .main-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo-text {
+    font-size: 22px;
+  }
+
+  .logo-img {
+    height: 28px;
+  }
+
+  .header-right {
+    gap: 10px;
+  }
+
+  .staging-badge {
+    font-size: 10px;
+    padding: 4px 10px;
+  }
+
   .statusHeader, .statusSubtitle {
     flex-direction: column;
     align-items: flex-start;
