@@ -149,7 +149,20 @@
           icon.innerHTML = isDark ? sunIcon : moonIcon;
         };
 
-        applyTheme(localStorage.getItem("theme") === "dark");
+        let initialIsDark = false;
+        const savedTheme = localStorage.getItem("theme");
+        if (savedTheme) {
+          initialIsDark = savedTheme === "dark";
+        } else {
+          initialIsDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
+        applyTheme(initialIsDark);
+
+        if (window.matchMedia) {
+          window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+            if (!localStorage.getItem("theme")) applyTheme(e.matches);
+          });
+        }
 
         toggleBtn.onclick = () => {
           const isDark = !document.body.classList.contains("dark-theme");
