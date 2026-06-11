@@ -409,7 +409,8 @@ async function genAllReports() {
   if (globalLatestTimestamp) {
     const lastCheckEl = document.getElementById("last-check-info");
     if (lastCheckEl) {
-      lastCheckEl.innerText = "Last check performed: " + globalLatestTimestamp.toLocaleString();
+      const nowTime = new Date().toLocaleTimeString();
+      lastCheckEl.innerText = "Last check performed: " + globalLatestTimestamp.toLocaleString() + " (Page refreshed: " + nowTime + ")";
     }
   }
 }
@@ -447,4 +448,38 @@ function updateWindowLabel() {
   } else {
     el.innerText = "Window: " + totalHours + " hours";
   }
+}
+
+// ─── Auto-Refresh ──────────────────────────────────────────────────────
+let autoRefreshInterval = null;
+
+function forceRefresh() {
+  rawLogCache = {};
+  genAllReports();
+}
+
+function initAutoRefresh() {
+  const checkbox = document.getElementById("auto-refresh-checkbox");
+  if (!checkbox) return;
+  
+  const applyAutoRefresh = () => {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+    }
+    if (checkbox.checked) {
+      autoRefreshInterval = setInterval(() => {
+        forceRefresh();
+      }, 60000); // 1 minute
+    }
+  };
+
+  checkbox.addEventListener("change", (e) => {
+    if (e.target.checked) {
+      forceRefresh();
+    }
+    applyAutoRefresh();
+  });
+  
+  applyAutoRefresh();
 }

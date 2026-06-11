@@ -48,7 +48,12 @@
             <button class="res-btn" data-resolution="6h">6 Hours</button>
             <button class="res-btn active" data-resolution="30min">30 Min</button>
           </div>
-          <span class="resolution-window-label" id="resolution-window-label"></span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <label style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer;" title="Refresh data every minute">
+              <input type="checkbox" id="auto-refresh-checkbox" checked> Auto-refresh
+            </label>
+            <span class="resolution-window-label" id="resolution-window-label"></span>
+          </div>
         </div>
         
         <!-- Manual messages (maintenance / incident notices from messages.json) -->
@@ -155,6 +160,7 @@
 
       initTheme();
       initResolutionToggle();
+      initAutoRefresh();
       genMessages();
       genAllReports();
     </script>
