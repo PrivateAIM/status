@@ -20,7 +20,12 @@ function constructStatusStream(key, url, uptimeData) {
   }
 
   const lastSet = uptimeData[0];
-  const color = getColor(lastSet);
+  const lastUptime = lastSet ? lastSet.uptime : null;
+  const color = getColor(lastUptime);
+
+  const durationText = uptimeData.latestDuration !== null && uptimeData.latestDuration !== undefined
+    ? `Latest run: ${uptimeData.latestDuration.toFixed(1)}s`
+    : "Latest run: --";
 
   const container = templatize("statusContainerTemplate", {
     title: key,
@@ -28,17 +33,19 @@ function constructStatusStream(key, url, uptimeData) {
     color: color,
     status: getStatusText(color),
     upTime: uptimeData.upTime,
+    upDays: uptimeData.daysWithData + "d",
+    latestDuration: durationText,
   });
 
   container.appendChild(streamContainer);
   return container;
 }
 
-function constructStatusLine(key, relDay, upTimeArray) {
+function constructStatusLine(key, relDay, dayData) {
   let date = new Date();
   date.setDate(date.getDate() - relDay);
 
-  return constructStatusSquare(key, date, upTimeArray);
+  return constructStatusSquare(key, date, dayData);
 }
 
 function getColor(uptimeVal) {
@@ -51,15 +58,18 @@ function getColor(uptimeVal) {
     : "partial";
 }
 
-function constructStatusSquare(key, date, uptimeVal) {
+function constructStatusSquare(key, date, dayData) {
+  const uptimeVal = dayData ? dayData.uptime : null;
+  const durationVal = dayData ? dayData.duration : null;
   const color = getColor(uptimeVal);
+
   let square = templatize("statusSquareTemplate", {
     color: color,
-    tooltip: getTooltip(key, date, color),
+    tooltip: getTooltip(key, date, color, durationVal),
   });
 
   const show = () => {
-    showTooltip(square, key, date, color);
+    showTooltip(square, key, date, color, durationVal);
   };
   square.addEventListener("mouseover", show);
   square.addEventListener("mousedown", show);
@@ -130,9 +140,10 @@ function getStatusDescriptiveText(color) {
     : "Unknown";
 }
 
-function getTooltip(key, date, quartile, color) {
+function getTooltip(key, date, color, duration) {
   let statusText = getStatusText(color);
-  return `${key} | ${date.toDateString()} : ${quartile} : ${statusText}`;
+  const durText = duration !== null && duration !== undefined ? ` (${duration.toFixed(1)}s)` : "";
+  return `${key} | ${date.toDateString()} : ${statusText}${durText}`;
 }
 
 function create(tag, className) {
@@ -147,25 +158,44 @@ function normalizeData(statusLines) {
 
   let relativeDateMap = {};
   const now = Date.now();
+  // Uptime is computed only over days inside the display window that
+  // actually have log entries; daysWithData is the covered period.
+  let sum = 0,
+    count = 0,
+    daysWithData = 0;
   for (const [key, val] of Object.entries(dateNormalized)) {
-    if (key == "upTime") {
+    if (key == "latestDuration") {
       continue;
     }
 
     const relDays = getRelativeDays(now, new Date(key).getTime());
-    relativeDateMap[relDays] = getDayAverage(val);
+    relativeDateMap[relDays] = {
+      uptime: getAverage(val.results),
+      duration: getAverage(val.durations),
+    };
+
+    if (relDays < maxDays && val.results.length > 0) {
+      daysWithData++;
+      sum += val.results.reduce((a, b) => a + b, 0);
+      count += val.results.length;
+    }
   }
 
-  relativeDateMap.upTime = dateNormalized.upTime;
+  relativeDateMap.upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
+  relativeDateMap.daysWithData = daysWithData;
+  relativeDateMap.latestDuration = dateNormalized.latestDuration;
   return relativeDateMap;
 }
 
-function getDayAverage(val) {
-  if (!val || val.length == 0) {
+function getAverage(arr) {
+  if (!arr || arr.length === 0) {
     return null;
-  } else {
-    return val.reduce((a, v) => a + v) / val.length;
   }
+  const valid = arr.filter((v) => v !== null && !isNaN(v));
+  if (valid.length === 0) {
+    return null;
+  }
+  return valid.reduce((a, b) => a + b, 0) / valid.length;
 }
 
 function getRelativeDays(date1, date2) {
@@ -174,58 +204,70 @@ function getRelativeDays(date1, date2) {
 
 function splitRowsByDate(rows) {
   let dateValues = {};
-  let sum = 0,
-    count = 0;
+  let latestDuration = null;
+
   for (var ii = 0; ii < rows.length; ii++) {
     const row = rows[ii];
     if (!row) {
       continue;
     }
 
-    const [dateTimeStr, resultStr] = row.split(",", 2);
+    const parts = row.split(",");
+    const dateTimeStr = parts[0];
+    const resultStr = parts[1] ? parts[1].trim() : "";
+    const duration = parts[2] ? parseFloat(parts[2].trim()) : null;
+
+    // "unknown" means the step never ran (an earlier step failed);
+    // exclude it from uptime statistics instead of counting it as failure.
+    if (resultStr == "unknown") {
+      continue;
+    }
+
     const dateTime = new Date(Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT"));
     const dateStr = dateTime.toDateString();
 
-    let resultArray = dateValues[dateStr];
-    if (!resultArray) {
-      resultArray = [];
-      dateValues[dateStr] = resultArray;
-      if (dateValues.length > maxDays) {
-        break;
-      }
+    let dayData = dateValues[dateStr];
+    if (!dayData) {
+      dayData = { results: [], durations: [] };
+      dateValues[dateStr] = dayData;
     }
 
     let result = 0;
-    if (resultStr.trim() == "success") {
+    if (resultStr == "success") {
       result = 1;
     }
-    sum += result;
-    count++;
-
-    resultArray.push(result);
+    dayData.results.push(result);
+    if (duration !== null && !isNaN(duration)) {
+      dayData.durations.push(duration);
+      latestDuration = duration;
+    }
   }
 
-  const upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
-  dateValues.upTime = upTime;
+  dateValues.latestDuration = latestDuration;
   return dateValues;
 }
 
 let tooltipTimeout = null;
-function showTooltip(element, key, date, color) {
+function showTooltip(element, key, date, color, duration) {
   clearTimeout(tooltipTimeout);
   const toolTipDiv = document.getElementById("tooltip");
 
   document.getElementById("tooltipDateTime").innerText = date.toDateString();
-  document.getElementById("tooltipDescription").innerText =
-    getStatusDescriptiveText(color);
+  
+  let descText = getStatusDescriptiveText(color);
+  if (duration !== null && duration !== undefined && color === "success") {
+    descText += ` Average run duration: ${duration.toFixed(1)}s.`;
+  }
+  document.getElementById("tooltipDescription").innerText = descText;
 
   const statusDiv = document.getElementById("tooltipStatus");
   statusDiv.innerText = getStatusText(color);
   statusDiv.className = color;
 
-  toolTipDiv.style.top = element.offsetTop + element.offsetHeight + 10;
+  const rect = element.getBoundingClientRect();
+  toolTipDiv.style.top = rect.bottom + window.scrollY + 10 + "px";
   toolTipDiv.style.left =
-    element.offsetLeft + element.offsetWidth / 2 - toolTipDiv.offsetWidth / 2;
+    rect.left + window.scrollX + rect.width / 2 - toolTipDiv.offsetWidth / 2 + "px";
   toolTipDiv.style.opacity = "1";
 }
 
@@ -234,6 +276,36 @@ function hideTooltip() {
     const toolTipDiv = document.getElementById("tooltip");
     toolTipDiv.style.opacity = "0";
   }, 1000);
+}
+
+async function genMessages() {
+  const container = document.getElementById("messages");
+  const response = await fetch("messages.json");
+  if (!response.ok) {
+    return;
+  }
+
+  const messages = await response.json();
+  messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  for (const msg of messages) {
+    const card = create("div", "messageCard " + msg.type);
+
+    const header = create("div", "messageHeader");
+    const title = create("span", "messageTitle");
+    title.innerText = msg.title;
+    const date = create("span", "messageDate");
+    date.innerText = msg.date;
+    header.appendChild(title);
+    header.appendChild(date);
+
+    const text = create("div", "messageText");
+    text.innerText = msg.text;
+
+    card.appendChild(header);
+    card.appendChild(text);
+    container.appendChild(card);
+  }
 }
 
 async function genAllReports() {

@@ -1,50 +1,62 @@
 [![Health Check](../../actions/workflows/health-check.yml/badge.svg)](../../actions/workflows/health-check.yml)
 
-# Statsig's Open-Source Status Page
+# FLAME E2E Status Page
 
-We tried various Status Pages out there, and built this as a fun little hobby project to make status pages as simple as possible.
+Automated end-to-end health monitoring for the [FLAME](https://privateaim.net) federated learning and analysis platform (staging cluster).
 
-## Demo
+Every 30 minutes, a GitHub Action runs a complete federated analysis round against the FLAME Hub — from login to result retrieval — and publishes the outcome to a static status page via GitHub Pages.
 
-- https://status.statsig.com
+## What is checked
 
-## Setup instructions
+Each run executes [`flame_health_check.py`](flame_health_check.py), which performs a real E2E workflow and reports six checks:
 
-1. Fork the [template repository](https://github.com/statsig-io/statuspage/).
-2. Update `urls.cfg` to include your urls.
+| Check | What it verifies | Timeout |
+| --- | --- | --- |
+| `login` | Authentication against the FLAME Hub and basic API access (node listing). | 10 s |
+| `upload` | Project/analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s |
+| `distribute` | Analysis image build and distribution to the target nodes. | 60 s |
+| `execute` | Execution of the analysis on the federated nodes. | 120 s |
+| `results` | Download of the result tarball and validation of the aggregated result payload. | — |
+| `latency` | Total E2E duration stays below 300 s. | 300 s |
 
-```cfg
-key1=https://example.com
-key2=https://statsig.com
+If a step fails, all subsequent steps are recorded as `unknown` (shown as "no data" on the page, excluded from uptime statistics).
+
+Results are appended as `date, status, duration` lines to `logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`index.html` / `index.js`) renders the last 30 days per check, including run durations.
+
+## Setup
+
+1. **Repository secrets** (Settings → Secrets and variables → Actions):
+   - `FLAME_USERNAME` / `FLAME_PASSWORD` — Hub credentials (required).
+   The Hub endpoints (`*.staging.privateaim.net`) are hardcoded at the top of `flame_health_check.py`.
+2. **GitHub Pages**: Settings → Pages → deploy from the `main` branch (root).
+3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the display links in `urls.cfg`.
+4. Trigger a first run manually via the *Scheduled Health Check* workflow (`workflow_dispatch`).
+
+## Manual messages
+
+Maintenance or incident notices can be posted by editing [`messages.json`](messages.json) (e.g. directly in the GitHub web editor). Each entry is rendered as a banner above the status cards, newest first:
+
+```json
+[
+  {
+    "date": "2026-06-12",
+    "type": "maintenance",
+    "title": "Hub upgrade",
+    "text": "Staging cluster will be unavailable June 12, 09:00-11:00 CEST."
+  }
+]
 ```
 
-3. Update `index.html` and change the title.
+`type` controls the banner accent: `info` (blue), `maintenance` (yellow), `incident` (red). Remove entries (or set the file to `[]`) to clear the page.
 
-```html
-<title>My Status Page</title>
-<h1>Services Status</h1>
+## Running locally
+
+```bash
+pip install -r requirements.txt
+export FLAME_USERNAME=... FLAME_PASSWORD=...
+python flame_health_check.py
 ```
 
-4. Set up GitHub Pages for your repository.
+## Credits
 
-![image](https://user-images.githubusercontent.com/74588208/121419015-5f4dc200-c920-11eb-9b14-a275ef5e2a19.png)
-
-## How does it work?
-
-This project uses GitHub actions to wake up every hour and run a shell script (`health-check.sh`). This script runs `curl` on every url in your config and appends the result of that run to a log file and commits it to the repository. This log is then pulled dynamically from `index.html` and displayed in a easily consumable fashion. You can also run that script from your own infrastructure to update the status page more often.
-
-## What does it not do (yet)?
-
-1. Incident management.
-2. Outage duration tracking.
-3. Updating status root-cause.
-
-## Got new ideas?
-
-Send in a PR - we'd love to integrate your ideas.
-
-## In case...
-
-You are looking for a developer friendly Feature flags, and A/B experimentation service for your product, check out: https://www.statsig.com
-
-![Statsig status page](https://user-images.githubusercontent.com/74588208/146078161-778fcb99-4a59-4e39-9fc0-abef18d5ac52.png)
+Frontend and status-page concept forked from [statsig-io/statuspage](https://github.com/statsig-io/statuspage).
