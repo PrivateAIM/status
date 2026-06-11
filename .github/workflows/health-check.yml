@@ -2,7 +2,7 @@ name: Scheduled Health Check
 
 on:
   schedule:
-    # Use non-standard minutes to avoid high-load periods on GitHub Actions (which delays/drops jobs at 0 or 30 past the hour)
+    # Offset from :00/:30 to avoid GitHub Actions high-load queuing delays
     - cron: "9,39 * * * *"
   workflow_dispatch:
 
