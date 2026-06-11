@@ -53,8 +53,7 @@ function constructStatusStream(key, url, uptimeData) {
     streamContainer.appendChild(line);
   }
 
-  const lastSet = uptimeData[0];
-  const lastUptime = lastSet ? lastSet.uptime : null;
+  const lastUptime = uptimeData.overallUptime;
   const color = getColor(lastUptime);
 
   const durationText = uptimeData.latestDuration !== null && uptimeData.latestDuration !== undefined
@@ -227,6 +226,17 @@ function normalizeData(statusLines) {
       duration: getAverage(data.durations),
     };
   }
+
+  const validRows = rows.filter(r => r.trim().length > 0);
+  const lastTwoRows = validRows.slice(-2);
+  let recentResults = [];
+  for (const row of lastTwoRows) {
+    const parts = row.split(",");
+    const resultStr = parts[1] ? parts[1].trim() : "";
+    if (resultStr === "success") recentResults.push(1);
+    else if (resultStr === "failed" || resultStr === "failure") recentResults.push(0);
+  }
+  relativeSlotMap.overallUptime = recentResults.length > 0 ? getAverage(recentResults) : null;
 
   relativeSlotMap.upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
   relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
