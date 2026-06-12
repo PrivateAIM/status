@@ -11,7 +11,7 @@ export function showTooltip(element, key, date, color, duration) {
   if (dateTimeEl) dateTimeEl.innerText = formatSlotDate(date);
 
   let descText = getStatusDescriptiveText(color);
-  if (duration !== null && duration !== undefined && color === "success") {
+  if (duration !== null && duration !== undefined && (color === "success" || color === "partial")) {
     descText += ` Average run duration: ${duration.toFixed(1)}s.`;
   }
   const descEl = document.getElementById("tooltipDescription");
