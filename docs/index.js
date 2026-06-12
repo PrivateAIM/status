@@ -36,7 +36,7 @@ function formatSlotDate(date) {
 }
 
 // ─── Report generation ──────────────────────────────────────────────────
-async function genReportLog(container, key, url) {
+async function genReportLog(container, key, url, desc) {
   let statusLines = rawLogCache[key];
   if (statusLines === undefined) {
     const response = await fetch(logBaseUrl + key + "_report.log?t=" + Date.now());
@@ -46,13 +46,11 @@ async function genReportLog(container, key, url) {
 
   const normalized = normalizeData(statusLines);
 
-  // Update an already-rendered report in place so refreshes don't flash
-  // the whole status stream; only create the DOM once per key.
   let reportEl = container.querySelector('[data-report-key="' + key + '"]');
   if (reportEl) {
-    updateStatusContainer(reportEl, normalized);
+    updateStatusContainer(reportEl, normalized, desc);
   } else {
-    reportEl = constructStatusStream(key, url, normalized);
+    reportEl = constructStatusStream(key, url, desc, normalized);
     container.appendChild(reportEl);
   }
 
@@ -65,7 +63,7 @@ function formatDurationText(latestDuration) {
     : "Latest run: --";
 }
 
-function constructStatusStream(key, url, uptimeData) {
+function constructStatusStream(key, url, desc, uptimeData) {
   let streamContainer = templatize("statusStreamContainerTemplate");
   for (var ii = maxBlocks - 1; ii >= 0; ii--) {
     let square = constructStatusSquare(key, ii, uptimeData[ii]);
@@ -78,6 +76,7 @@ function constructStatusStream(key, url, uptimeData) {
   const container = templatize("statusContainerTemplate", {
     title: key,
     url: url,
+    desc: desc,
     color: color,
     status: getStatusText(color),
     upTime: uptimeData.upTime,
@@ -92,12 +91,17 @@ function constructStatusStream(key, url, uptimeData) {
 
 // Refreshes an existing report card with new data, updating only the
 // badge, uptime line and individual squares rather than rebuilding the DOM.
-function updateStatusContainer(reportEl, uptimeData) {
+function updateStatusContainer(reportEl, uptimeData, desc) {
   const color = getColor(uptimeData.overallUptime);
 
   const badge = reportEl.querySelector(".status-indicator-badge");
   badge.className = "status-indicator-badge " + color;
   badge.innerText = getStatusText(color);
+
+  const urlEl = reportEl.querySelector(".sectionUrl a");
+  if (urlEl && desc) {
+    urlEl.innerText = desc;
+  }
 
   const uptimeEl = reportEl.querySelector(".statusUptime");
   uptimeEl.innerText =
@@ -235,7 +239,7 @@ function normalizeData(statusLines) {
   const now = Date.now();
 
   let relativeSlotMap = {};
-  let sum = 0, count = 0, slotsWithData = 0;
+  let sum = 0, count = 0, unknownCount = 0, slotsWithData = 0;
 
   for (const entry of parsedRows) {
     const age = now - entry.timestamp;
@@ -256,12 +260,16 @@ function normalizeData(statusLines) {
   // Aggregate each slot
   for (const [slot, data] of Object.entries(relativeSlotMap)) {
     slotsWithData++;
-    sum += data.results.reduce((a, b) => a + b, 0);
-    count += data.results.length;
+    const validResults = data.results.filter(r => r !== -1);
+    const slotUnknowns = data.results.filter(r => r === -1).length;
+    
+    sum += validResults.reduce((a, b) => a + b, 0);
+    count += validResults.length;
+    unknownCount += slotUnknowns;
 
     relativeSlotMap[slot] = {
-      uptime: getAverage(data.results),
-      duration: getAverage(data.durations),
+      uptime: validResults.length > 0 ? getAverage(validResults) : null,
+      duration: data.durations.length > 0 ? getAverage(data.durations) : null,
     };
   }
 
@@ -283,7 +291,9 @@ function normalizeData(statusLines) {
   }
   relativeSlotMap.overallUptime = recentResults.length > 0 ? getAverage(recentResults) : null;
 
-  relativeSlotMap.upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
+  const ignoredUptime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
+  const strictUptime = (count + unknownCount) ? ((sum / (count + unknownCount)) * 100).toFixed(2) + "%" : "--%";
+  relativeSlotMap.upTime = `${ignoredUptime} (${strictUptime})`;
   relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
   relativeSlotMap.latestDuration = parsedRows.length > 0 ? parsedRows[parsedRows.length - 1].duration : null;
   relativeSlotMap.latestTimestamp = parsedRows.length > 0 ? new Date(parsedRows[parsedRows.length - 1].timestamp) : null;
@@ -317,10 +327,11 @@ function parseRows(rows) {
     if (isNaN(timestamp)) continue;
 
     // "unknown" means the step never ran (an earlier step failed);
-    // exclude it from uptime statistics instead of counting it as failure.
-    if (resultStr == "unknown") continue;
+    // we now keep it as -1 to compute the strict uptime.
+    let result = -1;
+    if (resultStr == "success") result = 1;
+    else if (resultStr == "failed" || resultStr == "failure") result = 0;
 
-    let result = resultStr == "success" ? 1 : 0;
     entries.push({
       timestamp: timestamp,
       result: result,
@@ -436,10 +447,13 @@ async function genAllReports() {
   let allUptimes = [];
 
   for (let ii = 0; ii < configCache.length; ii++) {
-    const [key, url] = configCache[ii].split("=");
-    if (!key || !url) continue;
+    const parts = configCache[ii].split("=");
+    if (parts.length < 2) continue;
+    const key = parts[0];
+    const url = parts[1];
+    const desc = parts[2] || "FLAME Console";
 
-    const normalized = await genReportLog(reportsEl, key, url);
+    const normalized = await genReportLog(reportsEl, key, url, desc);
     const ts = normalized.latestTimestamp;
     if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {
       globalLatestTimestamp = ts;
