@@ -111,15 +111,19 @@ export function constructStatusStream(key, url, desc, uptimeData) {
   const lastUptime = uptimeData.overallUptime;
   const color = key === "latency" ? getLatencyColor(uptimeData.overallDuration) : getColor(lastUptime);
 
+  const displayTitle = key === "latency" ? "E2E Latency" : key;
+  const uptimeDetail = key === "latency"
+    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --") + ` (${uptimeData.coveredLabel})`
+    : `${uptimeData.upTime} uptime (${uptimeData.coveredLabel})`;
+
   const container = templatize("statusContainerTemplate", {
-    title: key,
+    title: displayTitle,
     url: url,
     desc: desc,
     color: color,
     status: getStatusText(color),
-    upTime: uptimeData.upTime,
-    upDays: uptimeData.coveredLabel,
     latestDuration: formatDurationText(uptimeData.latestDuration),
+    uptimeDetail: uptimeDetail,
   });
 
   container.dataset.reportKey = key;
@@ -144,10 +148,14 @@ export function updateStatusContainer(reportEl, uptimeData, desc) {
 
   const uptimeEl = reportEl.querySelector(".statusUptime");
   if (uptimeEl) {
+    const uptimeDetail = key === "latency"
+      ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --") + ` (${uptimeData.coveredLabel})`
+      : `${uptimeData.upTime} uptime (${uptimeData.coveredLabel})`;
+
     uptimeEl.innerText =
       formatDurationText(uptimeData.latestDuration) +
       "  •  " +
-      uptimeData.upTime + " uptime (" + uptimeData.coveredLabel + ")";
+      uptimeDetail;
   }
 
   reportEl.querySelectorAll(".statusSquare").forEach((square) => {

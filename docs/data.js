@@ -134,6 +134,10 @@ export function normalizeData(statusLines) {
   const strictUptime = (count + unknownCount) ? ((sum / (count + unknownCount)) * 100).toFixed(2) + "%" : "--%";
   relativeSlotMap.upTime = `${ignoredUptime} (${strictUptime})`;
   relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
+  
+  const allDurations = parsedRows.map(entry => entry.duration).filter(d => d !== null && !isNaN(d));
+  relativeSlotMap.avgDuration = allDurations.length > 0 ? getAverage(allDurations) : null;
+
   relativeSlotMap.latestDuration = parsedRows.length > 0 ? parsedRows[parsedRows.length - 1].duration : null;
   relativeSlotMap.latestTimestamp = parsedRows.length > 0 ? new Date(parsedRows[parsedRows.length - 1].timestamp) : null;
   return relativeSlotMap;
