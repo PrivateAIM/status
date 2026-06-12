@@ -129,13 +129,32 @@ body {
 .pulse-indicator {
   width: 12px;
   height: 12px;
-  background-color: var(--color-success);
   border-radius: 50%;
-  box-shadow: 0 0 0 0 var(--glow-success);
-  animation: pulse 2s infinite;
+  background-color: var(--color-success);
+  animation: pulse-success 2s infinite;
 }
 
-@keyframes pulse {
+.pulse-indicator.success {
+  background-color: var(--color-success);
+  animation: pulse-success 2s infinite;
+}
+
+.pulse-indicator.partial {
+  background-color: var(--color-partial);
+  animation: pulse-partial 2s infinite;
+}
+
+.pulse-indicator.failure {
+  background-color: var(--color-failure);
+  animation: pulse-failure 2s infinite;
+}
+
+.pulse-indicator.nodata {
+  background-color: var(--color-nodata);
+  animation: pulse-nodata 2s infinite;
+}
+
+@keyframes pulse-success {
   0% {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
@@ -149,6 +168,52 @@ body {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
 }
+
+@keyframes pulse-partial {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes pulse-failure {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes pulse-nodata {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(156, 163, 175, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(156, 163, 175, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(156, 163, 175, 0);
+  }
+}
+
 
 .header-right {
   display: flex;

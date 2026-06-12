@@ -264,16 +264,21 @@ export async function genAllReports() {
     allColors.push(compColor);
   }
 
-  // Update overall badge
+  // Update overall badge & pulsing dot
+  let overallColor = "nodata";
+  if (allColors.includes("failure")) overallColor = "failure";
+  else if (allColors.includes("partial")) overallColor = "partial";
+  else if (allColors.includes("success")) overallColor = "success";
+
   const badgeEl = document.getElementById("overall-status-badge");
   if (badgeEl) {
-    let overallColor = "nodata";
-    if (allColors.includes("failure")) overallColor = "failure";
-    else if (allColors.includes("partial")) overallColor = "partial";
-    else if (allColors.includes("success")) overallColor = "success";
-
     badgeEl.className = "overall-badge status-indicator-badge " + overallColor;
     badgeEl.innerText = getStatusText(overallColor);
+  }
+
+  const pulseEl = document.querySelector(".pulse-indicator");
+  if (pulseEl) {
+    pulseEl.className = "pulse-indicator " + overallColor;
   }
 
   if (globalLatestTimestamp) {
