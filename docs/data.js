@@ -85,7 +85,7 @@ export function normalizeData(statusLines) {
     }
 
     relativeSlotMap[relSlot].results.push(entry.result);
-    if (entry.duration !== null) {
+    if (entry.duration !== null && entry.result === 1) {
       relativeSlotMap[relSlot].durations.push(entry.duration);
     }
   }
@@ -121,10 +121,12 @@ export function normalizeData(statusLines) {
       const resultStr = parts[1] ? parts[1].trim() : "";
       const duration = parts[2] ? parseFloat(parts[2].trim()) : null;
 
-      if (resultStr === "success") recentResults.push(1);
-      else if (resultStr === "failed" || resultStr === "failure") recentResults.push(0);
-
-      if (duration !== null && !isNaN(duration)) recentDurations.push(duration);
+      if (resultStr === "success") {
+        recentResults.push(1);
+        if (duration !== null && !isNaN(duration)) recentDurations.push(duration);
+      } else if (resultStr === "failed" || resultStr === "failure") {
+        recentResults.push(0);
+      }
     }
   }
   relativeSlotMap.overallUptime = recentResults.length > 0 ? getAverage(recentResults) : null;
@@ -135,7 +137,10 @@ export function normalizeData(statusLines) {
   relativeSlotMap.upTime = `${ignoredUptime} (${strictUptime})`;
   relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
   
-  const allDurations = parsedRows.map(entry => entry.duration).filter(d => d !== null && !isNaN(d));
+  const allDurations = parsedRows
+    .filter(entry => entry.result === 1)
+    .map(entry => entry.duration)
+    .filter(d => d !== null && !isNaN(d));
   relativeSlotMap.avgDuration = allDurations.length > 0 ? getAverage(allDurations) : null;
 
   relativeSlotMap.latestDuration = parsedRows.length > 0 ? parsedRows[parsedRows.length - 1].duration : null;
