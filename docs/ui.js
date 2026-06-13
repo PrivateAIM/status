@@ -113,8 +113,8 @@ export function constructStatusStream(key, url, desc, uptimeData) {
 
   const displayTitle = key === "latency" ? "E2E Latency" : key;
   const uptimeDetail = key === "latency"
-    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --") + ` (${uptimeData.coveredLabel})`
-    : `${uptimeData.upTime} uptime (${uptimeData.coveredLabel})`;
+    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
+    : `${uptimeData.upTime}`;
 
   const container = templatize("statusContainerTemplate", {
     title: displayTitle,
@@ -149,8 +149,8 @@ export function updateStatusContainer(reportEl, uptimeData, desc) {
   const uptimeEl = reportEl.querySelector(".statusUptime");
   if (uptimeEl) {
     const uptimeDetail = key === "latency"
-      ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --") + ` (${uptimeData.coveredLabel})`
-      : `${uptimeData.upTime} uptime (${uptimeData.coveredLabel})`;
+      ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
+      : `${uptimeData.upTime}`;
 
     uptimeEl.innerText =
       formatDurationText(uptimeData.latestDuration) +
@@ -201,14 +201,18 @@ export async function genMessages() {
 }
 
 // ─── Log Fetching and Report Building ──────────────────────────────────
-export async function genReportLog(container, key, url, desc) {
+export async function fetchLog(key) {
   let statusLines = state.rawLogCache[key];
   if (statusLines === undefined) {
     const response = await fetch(CONFIG.logBaseUrl + key + "_report.log?t=" + Date.now());
     statusLines = response.ok ? await response.text() : "";
     state.rawLogCache[key] = statusLines;
   }
+  return statusLines;
+}
 
+export async function genReportLog(container, key, url, desc) {
+  const statusLines = await fetchLog(key);
   const normalized = normalizeData(statusLines);
 
   let reportEl = container.querySelector('[data-report-key="' + key + '"]');
@@ -242,13 +246,21 @@ export async function genAllReports() {
   let globalLatestTimestamp = null;
   let allColors = [];
 
+  const configList = [];
   for (let ii = 0; ii < state.configCache.length; ii++) {
     const parts = state.configCache[ii].split("=");
     if (parts.length < 2) continue;
     const key = parts[0];
     const url = parts[1];
     const desc = parts[2] || "FLAME Console";
+    configList.push({ key, url, desc });
+  }
 
+  // Fetch all logs in parallel to optimize page speed
+  await Promise.all(configList.map(item => fetchLog(item.key)));
+
+  // Render them sequentially in order (they will instantly retrieve from rawLogCache)
+  for (const { key, url, desc } of configList) {
     const normalized = await genReportLog(reportsEl, key, url, desc);
     const ts = normalized.latestTimestamp;
     if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {

@@ -1,7 +1,7 @@
 export const CONFIG = {
   maxBlocks: 30,
   statusLookbackMinutes: 45,
-  logBaseUrl: "https://raw.githubusercontent.com/not-a-feature/FLAME-Status/data/docs/logs/",
+  logBaseUrl: "logs/",
   
   // Latency thresholds (seconds)
   latency: {

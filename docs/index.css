@@ -290,6 +290,7 @@ body.dark-theme .staging-badge {
   padding: 24px;
   text-align: left;
   box-shadow: var(--card-shadow);
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
 }
 
 .intro-card h2 {
@@ -314,7 +315,7 @@ body.dark-theme .staging-badge {
   border: 1px solid var(--border-color);
   border-radius: 16px;
   box-shadow: var(--card-shadow);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, background-color 0.3s, color 0.3s, box-shadow 0.3s;
 }
 
 .card:hover {
@@ -344,6 +345,7 @@ body.dark-theme .card:hover {
   border-radius: 12px;
   padding: 14px 18px;
   box-shadow: var(--card-shadow);
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
 }
 
 .messageCard.maintenance {
@@ -397,6 +399,7 @@ body.dark-theme .card:hover {
   padding: 3px;
   gap: 2px;
   box-shadow: var(--card-shadow);
+  transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
 }
 
 .res-btn {
@@ -409,7 +412,7 @@ body.dark-theme .card:hover {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
   outline: none;
 }
 
