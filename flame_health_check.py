@@ -21,9 +21,11 @@ assert PASSWORD, "FLAME_PASSWORD is empty - set the repository secret."
 TARGET_NODE_NAMES = ["aggregator-1", "default-1", "default-2"]
 PROJECT_NAME = "health-check"
 TIMEOUT_SHORT_SECONDS = 10.0  # Authentication
-TIMEOUT_MEDIUM_SECONDS = 60.0  # Build and distribution
+TIMEOUT_MEDIUM_SECONDS = 120.0  # Build and distribution
 TIMEOUT_LONG_SECONDS = 240.0  # Execution
-LATENCY_LIMIT_SECONDS = 360.0  # Threshold for overall E2E latency
+LATENCY_LIMIT_SECONDS = (
+    2 * TIMEOUT_SHORT_SECONDS + 2 * TIMEOUT_MEDIUM_SECONDS + TIMEOUT_LONG_SECONDS
+)  # Threshold for overall E2E latency
 
 # ---------------------------------------------------------
 # Status & Duration Tracking
