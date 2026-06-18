@@ -185,14 +185,15 @@ def run_pair(aggregator, compute_node, project_id, master_image_id) -> dict:
         "step_duration": {k: None for k in PAIR_STEP_KEYS},
     }
 
-    # Online pre-check: an offline node is down without spending a run on it,
-    # while the shared step cards stay untouched (this run reports "unknown").
-    if not aggregator.online or not compute_node.online:
-        print(
-            f"[!] {compute_node.name}: skipped, online pre-check failed "
-            f"(aggregator={aggregator.online}, {compute_node.name}={compute_node.online})."
-        )
-        return record
+    # The hub's node.online flag is unreliable on staging - it reports False even
+    # for nodes that successfully run analyses - so it is informational only.
+    # Actual availability is decided by the pair run itself: a truly down node
+    # makes its run fail or time out and is marked down by the merge.
+    print(
+        f"[*] {compute_node.name}: starting pair run "
+        f"(reported online: aggregator={aggregator.online}, "
+        f"{compute_node.name}={compute_node.online})."
+    )
 
     core_client, storage_client = make_clients()
     run_start_time = time.time()
