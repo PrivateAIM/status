@@ -111,23 +111,28 @@ def _distribute(core_client, analysis, aggregator, compute_node):
     core_client.send_analysis_command(analysis.id, "configurationLock")
     core_client.send_analysis_command(analysis.id, "buildStart")
 
-    poll_start_time = time.time()
-    distribution_started = False
-    while time.time() - poll_start_time < TIMEOUT_MEDIUM_SECONDS:
+    # Build and distribution are sequential phases, each allowed its own full
+    # budget (mirrored by the 2 * TIMEOUT_MEDIUM_SECONDS term in the latency
+    # limit). Sharing one window lets a slow build starve an otherwise healthy
+    # distribution.
+    build_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
+    while True:
         analysis = fetch_analysis(core_client, analysis.id)
         assert analysis.build_status != "failed", "Analysis build failed."
-        assert analysis.distribution_status != "failed", "Analysis distribution failed."
-
         if analysis.build_status == "executed":
-            if not distribution_started and analysis.distribution_status is None:
-                core_client.send_analysis_command(analysis.id, "distributionStart")
-                distribution_started = True
-            elif analysis.distribution_status == "executed":
-                break
-
+            break
+        assert time.time() < build_deadline, "Timeout waiting for build phase."
         time.sleep(POLL_INTERVAL_SECONDS)
-    else:
-        raise AssertionError("Timeout waiting for build/distribution phase.")
+
+    core_client.send_analysis_command(analysis.id, "distributionStart")
+    distribution_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
+    while True:
+        analysis = fetch_analysis(core_client, analysis.id)
+        assert analysis.distribution_status != "failed", "Analysis distribution failed."
+        if analysis.distribution_status == "executed":
+            break
+        assert time.time() < distribution_deadline, "Timeout waiting for distribution phase."
+        time.sleep(POLL_INTERVAL_SECONDS)
 
 
 def _execute(core_client, analysis):
