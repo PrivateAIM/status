@@ -10,7 +10,7 @@ from config import (
     CORE_URL,
     PASSWORD,
     PROJECT_NAME,
-    STALE_ANALYSIS_MIN_AGE_SECONDS,
+    STALE_ANALYSIS_MAX_AGE_SECONDS,
     STORAGE_URL,
     USERNAME,
 )
@@ -43,18 +43,15 @@ def fetch_analysis(core_client, analysis_id):
 
 
 def cleanup_stale_analyses(core_client, project):
-    # Clear out leftovers from earlier runs so each run starts clean: delete
-    # every analysis old enough that it cannot belong to an in-flight run -
-    # both previous (finished/failed) analyses and genuinely stuck active ones.
-    # Young analyses may be the in-flight job of an overlapping run, so they are
-    # spared regardless of phase.
+    # Delete every analysis older than the max-age threshold, regardless of
+    # phase. Runs are serialized by the workflow concurrency group, so anything
+    # that old is a leftover from an earlier, finished run. Done once, before any
+    # pair run creates its own analysis, so the current run is never touched.
     existing_analyses = core_client.find_analyses(filter={"project_id": project.id})
-
     now = datetime.now(timezone.utc)
     for old_analysis in existing_analyses:
         age_seconds = (now - old_analysis.created_at).total_seconds()
-        is_stale = age_seconds > STALE_ANALYSIS_MIN_AGE_SECONDS
-        if is_stale:
+        if age_seconds > STALE_ANALYSIS_MAX_AGE_SECONDS:
             print(
                 f"[!] Deleting stale analysis {old_analysis.id} "
                 f"(age={age_seconds:.0f}s, build={old_analysis.build_status}, "

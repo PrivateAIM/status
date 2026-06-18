@@ -34,7 +34,7 @@ BUCKET_POLL_INTERVAL_SECONDS = 1.0  # CODE bucket creation poll cadence
 UPLOAD_SETTLE_SECONDS = 2.0  # Settle time after upload before listing files
 ANALYSIS_RETRY_DELAY_SECONDS = 2.0  # Backoff between transient analysis 404 retries
 ANALYSIS_RETRY_ATTEMPTS = 5  # Retries for a transient analysis 404
-STALE_ANALYSIS_AGE_BUFFER_SECONDS = 60.0  # Margin over a full run before stale
+STALE_ANALYSIS_MAX_AGE_SECONDS = 3600.0  # Delete analyses older than this (1 hour)
 
 # Threshold for a single pair-run's end-to-end latency: the sum of the worst-
 # case per-step budgets that make up a pair run - the CODE-bucket wait of the
@@ -47,12 +47,6 @@ LATENCY_LIMIT_SECONDS = (
     + TIMEOUT_LONG_SECONDS
     + TIMEOUT_RESULTS_SECONDS
 )
-
-# Analyses older than a full run budget are considered stale and deleted during
-# cleanup (both previous finished/failed runs and stuck active ones). This age
-# gate protects the in-flight parallel jobs of a concurrently running (or
-# overlapping) execution from being torn down.
-STALE_ANALYSIS_MIN_AGE_SECONDS = LATENCY_LIMIT_SECONDS + STALE_ANALYSIS_AGE_BUFFER_SECONDS
 
 # Pipeline steps measured inside each per-node pair run. "login" is measured
 # once in the shared phase and is not part of a pair run.

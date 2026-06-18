@@ -55,7 +55,7 @@ def main():
         selected_nodes, aggregator, compute_nodes = split_nodes(nodes)
 
         # Shared project preparation (one project, all target nodes).
-        print("[*] Step 2: Preparing project and clearing stale analyses...")
+        print("[*] Step 2: Preparing project and clearing previous analyses...")
         project = prepare_project(core_client, [str(node.id) for node in selected_nodes])
         master_image_id = get_master_image_id(core_client)
 
