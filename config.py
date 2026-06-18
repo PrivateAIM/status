@@ -40,9 +40,10 @@ LATENCY_LIMIT_SECONDS = (
     2 * TIMEOUT_SHORT_SECONDS + 2 * TIMEOUT_MEDIUM_SECONDS + TIMEOUT_LONG_SECONDS
 )
 
-# Only active analyses older than a full run budget are considered stale and
-# deleted during cleanup. This protects the in-flight parallel jobs of a
-# concurrently running (or overlapping) execution from being torn down.
+# Analyses older than a full run budget are considered stale and deleted during
+# cleanup (both previous finished/failed runs and stuck active ones). This age
+# gate protects the in-flight parallel jobs of a concurrently running (or
+# overlapping) execution from being torn down.
 STALE_ANALYSIS_MIN_AGE_SECONDS = LATENCY_LIMIT_SECONDS + STALE_ANALYSIS_AGE_BUFFER_SECONDS
 
 # Pipeline steps measured inside each per-node pair run. "login" is measured

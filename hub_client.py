@@ -15,9 +15,6 @@ from config import (
     USERNAME,
 )
 
-# Analysis phases that no longer occupy cluster resources.
-TERMINAL_STATUSES = {"finished", "failed"}
-
 
 def make_clients():
     auth = flame_hub.auth.PasswordAuth(username=USERNAME, password=PASSWORD, base_url=AUTH_URL)
@@ -46,23 +43,20 @@ def fetch_analysis(core_client, analysis_id):
 
 
 def cleanup_stale_analyses(core_client, project):
-    # Delete only genuinely stuck (old) active analyses in this project. Young
-    # ones may be the in-flight job of an overlapping run, so they are spared.
+    # Clear out leftovers from earlier runs so each run starts clean: delete
+    # every analysis old enough that it cannot belong to an in-flight run -
+    # both previous (finished/failed) analyses and genuinely stuck active ones.
+    # Young analyses may be the in-flight job of an overlapping run, so they are
+    # spared regardless of phase.
     existing_analyses = core_client.find_analyses(filter={"project_id": project.id})
 
     now = datetime.now(timezone.utc)
     for old_analysis in existing_analyses:
-        phases = [
-            old_analysis.build_status,
-            old_analysis.distribution_status,
-            old_analysis.execution_status,
-        ]
-        is_active = any(p is not None and p not in TERMINAL_STATUSES for p in phases)
         age_seconds = (now - old_analysis.created_at).total_seconds()
         is_stale = age_seconds > STALE_ANALYSIS_MIN_AGE_SECONDS
-        if is_active and is_stale:
+        if is_stale:
             print(
-                f"[!] Deleting stale active analysis {old_analysis.id} "
+                f"[!] Deleting stale analysis {old_analysis.id} "
                 f"(age={age_seconds:.0f}s, build={old_analysis.build_status}, "
                 f"dist={old_analysis.distribution_status}, "
                 f"exec={old_analysis.execution_status})"
