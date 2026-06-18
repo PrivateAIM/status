@@ -10,18 +10,32 @@ Maintainer: [Jules Kreuer](https://github.com/not-a-feature)
 
 ## What is checked
 
-Each run executes [`flame_health_check.py`](flame_health_check.py), which performs a real E2E workflow and reports six checks:
+Each run executes [`flame_health_check.py`](flame_health_check.py). After a shared `login`, it
+runs a **separate minimal analysis per compute node** — each one pairing the aggregator with a
+single node (`aggregator-1 + default-1`, `aggregator-1 + default-2`, …) — **in parallel**, each
+gated by an `online` pre-check. This yields an independent up/down verdict and latency for every
+node, instead of one all-or-nothing round that hangs if any node is down.
+
+The results are merged into six step cards and a per-node section:
 
 | Check | What it verifies | Timeout |
 | --- | --- | --- |
-| `login` | Authentication against the FLAME Hub and basic API access (node listing). | 10 s |
-| `upload` | Project/analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s |
-| `distribute` | Analysis image build and distribution to the target nodes. | 60 s |
-| `execute` | Execution of the analysis on the federated nodes. | 120 s |
-| `results` | Download of the result tarball and validation of the aggregated result payload. | — |
-| `latency` | Total E2E duration stays below 300 s. | 300 s |
+| `login` | Authentication against the FLAME Hub and basic API access (node listing). Shared, once. | 10 s |
+| `upload` | Per pair: analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s |
+| `distribute` | Per pair: analysis image build and distribution to the paired nodes. | 60 s |
+| `execute` | Per pair: execution of the analysis on the paired nodes. | 120 s |
+| `results` | Per pair: download of the result tarball and confirmation that both paired nodes reported `ok`. | — |
+| `latency` | Per pair: E2E duration stays below 300 s. | 300 s |
 
-If a step fails, all subsequent steps are recorded as `unknown` (shown as "no data" on the page, excluded from uptime statistics).
+The five pipeline step cards (`upload`…`latency`) are **aggregated across the parallel pair runs**
+(status merged, duration averaged). The per-node cards at the bottom show each node's own up/down
+and latency; `aggregator-1` counts as up if any of its pairs succeeds. The **overall** badge is the
+aggregation of the node verdicts: all up → operational, some down → partial, all down or `login`
+failing → major outage.
+
+If a step fails within a pair run, that run's subsequent steps are recorded as `unknown` (shown as
+"no data" on the page, excluded from uptime statistics); an offline node is recorded down without
+spending a run on it.
 
 Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders the last 30 days per check, including run durations.
 

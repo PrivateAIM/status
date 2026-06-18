@@ -87,17 +87,17 @@ export function formatDurationText(latestDuration) {
     : "Latest run: --";
 }
 
-// Builds the subtitle detail line for a report card. Node cards are pass/fail
-// with no meaningful duration, so they show availability only; latency shows
-// average run time; every other step shows its uptime ratio.
+// Builds the subtitle detail line for a report card. Node cards and the latency
+// card show run latency (up/down is conveyed by colour); every other step shows
+// its uptime ratio.
 export function getStatusDetail(key, uptimeData) {
-  if (isNodeKey(key)) {
-    return `Availability: ${uptimeData.upTime}`;
+  if (key === "latency" || isNodeKey(key)) {
+    const avg = uptimeData.avgDuration !== null
+      ? `Average: ${uptimeData.avgDuration.toFixed(1)}s`
+      : "Average: --";
+    return formatDurationText(uptimeData.latestDuration) + "  •  " + avg;
   }
-  const uptimeDetail = key === "latency"
-    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
-    : `${uptimeData.upTime}`;
-  return formatDurationText(uptimeData.latestDuration) + "  •  " + uptimeDetail;
+  return formatDurationText(uptimeData.latestDuration) + "  •  " + `${uptimeData.upTime}`;
 }
 
 export function applySquareData(square, slotData) {
@@ -243,7 +243,8 @@ export async function genAllReports() {
   const nodeReportsEl = document.getElementById("node-reports");
 
   let globalLatestTimestamp = null;
-  let allColors = [];
+  let nodeColors = [];
+  let loginColor = "nodata";
   let nodeReportCount = 0;
 
   const configList = CONFIG.reports.map(({ key, desc }) => ({
@@ -267,18 +268,16 @@ export async function genAllReports() {
       globalLatestTimestamp = ts;
     }
 
+    const compColor = key === "latency"
+      ? getLatencyColor(normalized.overallDuration)
+      : getColor(normalized.overallUptime);
+
     if (nodeCard) {
       nodeReportCount++;
-      continue;  // Node availability is excluded from the overall E2E badge.
+      nodeColors.push(compColor);  // node verdicts drive the overall badge
+      continue;
     }
-
-    let compColor = "nodata";
-    if (key === "latency") {
-      compColor = getLatencyColor(normalized.overallDuration);
-    } else {
-      compColor = getColor(normalized.overallUptime);
-    }
-    allColors.push(compColor);
+    if (key === "login") loginColor = compColor;
   }
 
   // Reveal the node section only when at least one node report was rendered.
@@ -287,11 +286,23 @@ export async function genAllReports() {
     nodeSection.style.display = nodeReportCount > 0 ? "" : "none";
   }
 
-  // Update overall badge & pulsing dot
-  let overallColor = "nodata";
-  if (allColors.includes("failure")) overallColor = "failure";
-  else if (allColors.includes("partial")) overallColor = "partial";
-  else if (allColors.includes("success")) overallColor = "success";
+  // Overall status is the aggregation of the per-node verdicts, gated by the
+  // shared login step: login down → major; all nodes up → operational; some up
+  // and some down → partial; all down → major. nodata nodes count as neither.
+  const nodesUp = nodeColors.filter((c) => c === "success").length;
+  const nodesDown = nodeColors.filter((c) => c === "failure").length;
+  let overallColor;
+  if (loginColor === "failure") {
+    overallColor = "failure";
+  } else if (nodesDown > 0 && nodesUp > 0) {
+    overallColor = "partial";
+  } else if (nodesDown > 0) {
+    overallColor = "failure";
+  } else if (nodesUp > 0) {
+    overallColor = "success";
+  } else {
+    overallColor = loginColor;
+  }
 
   const badgeEl = document.getElementById("overall-status-badge");
   if (badgeEl) {
