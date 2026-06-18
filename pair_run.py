@@ -15,6 +15,7 @@ from config import (
     TIMEOUT_BUCKET_SECONDS,
     TIMEOUT_LONG_SECONDS,
     TIMEOUT_MEDIUM_SECONDS,
+    TIMEOUT_RESULTS_SECONDS,
     UPLOAD_SETTLE_SECONDS,
 )
 from hub_client import fetch_analysis, make_clients
@@ -157,12 +158,19 @@ def _fetch_results(core_client, storage_client, analysis, aggregator, compute_no
     assert len(result_buckets) > 0, f"No RESULT bucket found for analysis {analysis.id}."
     result_bucket = result_buckets[0]
 
-    with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as tmp:
-        result_tar_path = tmp.name
-        for chunk in storage_client.stream_bucket_tarball(result_bucket.bucket_id):
-            tmp.write(chunk)
-
+    tmp = tempfile.NamedTemporaryFile(suffix=".tar", delete=False)
+    result_tar_path = tmp.name
+    tmp.close()
     try:
+        # Bound the streaming download: a stalled transfer would otherwise hang
+        # this worker forever, and with no per-step budget the whole health
+        # check would never finish or report.
+        download_deadline = time.time() + TIMEOUT_RESULTS_SECONDS
+        with open(result_tar_path, "wb") as f:
+            for chunk in storage_client.stream_bucket_tarball(result_bucket.bucket_id):
+                f.write(chunk)
+                assert time.time() < download_deadline, "Timeout streaming result tarball."
+
         with tarfile.open(result_tar_path, "r:*") as archive:
             file_members = [m for m in archive.getmembers() if m.isfile()]
             assert len(file_members) > 0, "No files inside the result archive tar."

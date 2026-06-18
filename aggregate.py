@@ -50,7 +50,20 @@ def merge_records(records: list[dict], aggregator, statuses: dict, step_duration
     ]
     step_durations[f"node_{aggregator.name}"] = average(aggregator_latencies)
 
-    # Step cards aggregate across the runs: status merged, duration averaged.
+    # Step cards aggregate across the runs: status merged across every run, but
+    # duration averaged over only the nodes that actually completed the step - a
+    # broken node's partial (timed-out) duration is not a meaningful timing.
+    # E2E latency is exempt: it is recorded only for reachable nodes already, so
+    # averaging its present values keeps slow-but-up nodes in the number.
     for step in PAIR_STEP_KEYS:
         statuses[step] = merge_step_status([record["step_status"][step] for record in records])
-        step_durations[step] = average([record["step_duration"][step] for record in records])
+        if step == "latency":
+            step_durations[step] = average([record["step_duration"][step] for record in records])
+        else:
+            step_durations[step] = average(
+                [
+                    record["step_duration"][step]
+                    for record in records
+                    if record["step_status"][step] == "success"
+                ]
+            )

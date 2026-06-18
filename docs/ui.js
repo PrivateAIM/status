@@ -286,22 +286,24 @@ export async function genAllReports() {
     nodeSection.style.display = nodeReportCount > 0 ? "" : "none";
   }
 
-  // Overall status is the aggregation of the per-node verdicts, gated by the
-  // shared login step: login down → major; all nodes up → operational; some up
-  // and some down → partial; all down → major. nodata nodes count as neither.
+  // Overall status aggregates the per-node verdicts, gated by the shared login
+  // step: login down → major; all known nodes up → operational; a minority of
+  // nodes down (< majorOutageDownRatio) → partial; half or more down → major.
+  // nodata / unknown nodes are excluded from the ratio entirely.
   const nodesUp = nodeColors.filter((c) => c === "success").length;
   const nodesDown = nodeColors.filter((c) => c === "failure").length;
+  const knownNodes = nodesUp + nodesDown;
   let overallColor;
   if (loginColor === "failure") {
     overallColor = "failure";
-  } else if (nodesDown > 0 && nodesUp > 0) {
-    overallColor = "partial";
-  } else if (nodesDown > 0) {
-    overallColor = "failure";
-  } else if (nodesUp > 0) {
-    overallColor = "success";
-  } else {
+  } else if (knownNodes === 0) {
     overallColor = loginColor;
+  } else if (nodesDown === 0) {
+    overallColor = "success";
+  } else if (nodesDown / knownNodes < CONFIG.overall.majorOutageDownRatio) {
+    overallColor = "partial";
+  } else {
+    overallColor = "failure";
   }
 
   const badgeEl = document.getElementById("overall-status-badge");

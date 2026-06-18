@@ -30,6 +30,12 @@ export const CONFIG = {
   uptime: {
     partialThreshold: 0.3
   },
+
+  // Overall badge: fraction of known (non-nodata) nodes that must be DOWN to
+  // escalate from partial outage (orange) to major outage (red).
+  overall: {
+    majorOutageDownRatio: 0.5
+  },
   
   // Auto-refresh interval (ms)
   autoRefreshIntervalMs: 60000,
