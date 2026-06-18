@@ -6,6 +6,8 @@ Automated end-to-end health monitoring for the [FLAME](https://privateaim.net) f
 
 Every 30 minutes, a GitHub Action runs a complete federated analysis round against the FLAME Hub — from login to result retrieval — and publishes the outcome to a static status page via GitHub Pages.
 
+Maintainer: [Jules Kreuer](https://github.com/not-a-feature)
+
 ## What is checked
 
 Each run executes [`flame_health_check.py`](flame_health_check.py), which performs a real E2E workflow and reports six checks:
@@ -29,7 +31,7 @@ Results are appended as `date, status, duration` lines to `docs/logs/<check>_rep
    - `FLAME_USERNAME` / `FLAME_PASSWORD` — Hub credentials (required).
    The Hub endpoints (`*.staging.privateaim.net`) are hardcoded at the top of `flame_health_check.py`.
 2. **GitHub Pages**: Settings → Pages → deploy from the `main` branch, `/docs` folder.
-3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the display links in `docs/urls.cfg`.
+3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the report cards / console link in `CONFIG.reports` / `CONFIG.consoleUrl` in `docs/constants.js`.
 4. Trigger a first run manually via the *Scheduled Health Check* workflow (`workflow_dispatch`).
 
 ## Manual messages

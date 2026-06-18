@@ -2,6 +2,23 @@ export const CONFIG = {
   maxBlocks: 30,
   statusLookbackMinutes: 45,
   logBaseUrl: "https://raw.githubusercontent.com/not-a-feature/FLAME-Status/data/docs/logs/",
+
+  // Console all report cards link to.
+  consoleUrl: "https://core.staging.privateaim.net",
+
+  // Report cards in render order. `key` selects the <key>_report.log stream;
+  // `node_*` keys render in the per-node availability section.
+  reports: [
+    { key: "login",             desc: "Authentication & Login" },
+    { key: "upload",            desc: "Code Upload" },
+    { key: "distribute",        desc: "Distribution to Nodes" },
+    { key: "execute",           desc: "Code Execution on Nodes" },
+    { key: "results",           desc: "Results Retrieval" },
+    { key: "latency",           desc: "E2E Latency" },
+    { key: "node_aggregator-1", desc: "Aggregator Node 1" },
+    { key: "node_default-1",    desc: "Compute Node 1" },
+    { key: "node_default-2",    desc: "Compute Node 2" },
+  ],
   
   // Latency thresholds (seconds)
   latency: {

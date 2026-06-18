@@ -61,6 +61,18 @@
 
         <!-- Reports Container -->
         <div id="reports" class="reportContainer"></div>
+
+        <!-- Per-node availability (hidden until at least one node report renders) -->
+        <section id="node-section" class="node-section" style="display: none">
+          <hr class="node-section-divider" />
+          <div class="node-section-header">
+            <h2 class="node-section-title">Node Availability</h2>
+            <p class="node-section-subtitle">
+              Reachability of each federated node, derived from the latest connection test.
+            </p>
+          </div>
+          <div id="node-reports" class="reportContainer"></div>
+        </section>
       </main>
       
       <!-- Tooltip -->
@@ -102,7 +114,7 @@
             <span class="sectionUrl">
               <a href="$url" target="_blank" rel="noopener noreferrer">$desc</a>
             </span>
-            <span class="statusUptime">$latestDuration &nbsp;&bull;&nbsp; $uptimeDetail</span>
+            <span class="statusUptime">$statusDetail</span>
           </div>
         </div>
       </div>

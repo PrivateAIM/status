@@ -69,11 +69,35 @@ export function getLatencyColor(durationVal) {
   return "failure";
 }
 
+// ─── Key helpers ─────────────────────────────────────────────────────────
+export function isNodeKey(key) {
+  return key.startsWith("node_");
+}
+
+export function getDisplayTitle(key) {
+  if (key === "latency") return "E2E Latency";
+  if (isNodeKey(key)) return key.slice("node_".length);
+  return key;
+}
+
 // ─── Rendering and Card Updates ──────────────────────────────────────────
 export function formatDurationText(latestDuration) {
   return latestDuration !== null && latestDuration !== undefined
     ? `Latest run: ${latestDuration.toFixed(1)}s`
     : "Latest run: --";
+}
+
+// Builds the subtitle detail line for a report card. Node cards are pass/fail
+// with no meaningful duration, so they show availability only; latency shows
+// average run time; every other step shows its uptime ratio.
+export function getStatusDetail(key, uptimeData) {
+  if (isNodeKey(key)) {
+    return `Availability: ${uptimeData.upTime}`;
+  }
+  const uptimeDetail = key === "latency"
+    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
+    : `${uptimeData.upTime}`;
+  return formatDurationText(uptimeData.latestDuration) + "  •  " + uptimeDetail;
 }
 
 export function applySquareData(square, slotData) {
@@ -111,19 +135,13 @@ export function constructStatusStream(key, url, desc, uptimeData) {
   const lastUptime = uptimeData.overallUptime;
   const color = key === "latency" ? getLatencyColor(uptimeData.overallDuration) : getColor(lastUptime);
 
-  const displayTitle = key === "latency" ? "E2E Latency" : key;
-  const uptimeDetail = key === "latency"
-    ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
-    : `${uptimeData.upTime}`;
-
   const container = templatize("statusContainerTemplate", {
-    title: displayTitle,
+    title: getDisplayTitle(key),
     url: url,
     desc: desc,
     color: color,
     status: getStatusText(color),
-    latestDuration: formatDurationText(uptimeData.latestDuration),
-    uptimeDetail: uptimeDetail,
+    statusDetail: getStatusDetail(key, uptimeData),
   });
 
   container.dataset.reportKey = key;
@@ -148,14 +166,7 @@ export function updateStatusContainer(reportEl, uptimeData, desc) {
 
   const uptimeEl = reportEl.querySelector(".statusUptime");
   if (uptimeEl) {
-    const uptimeDetail = key === "latency"
-      ? (uptimeData.avgDuration !== null ? `Average: ${uptimeData.avgDuration.toFixed(1)}s` : "Average: --")
-      : `${uptimeData.upTime}`;
-
-    uptimeEl.innerText =
-      formatDurationText(uptimeData.latestDuration) +
-      "  •  " +
-      uptimeDetail;
+    uptimeEl.innerText = getStatusDetail(key, uptimeData);
   }
 
   reportEl.querySelectorAll(".statusSquare").forEach((square) => {
@@ -227,46 +238,40 @@ export async function genReportLog(container, key, url, desc) {
 }
 
 export async function genAllReports() {
-  if (state.configCache.length === 0) {
-    try {
-      const response = await fetch("urls.cfg?t=" + Date.now());
-      if (response.ok) {
-        const configText = await response.text();
-        state.configCache = configText.split("\n").filter((l) => l.includes("="));
-      }
-    } catch (err) {
-      console.error("Failed to load urls.cfg:", err);
-      return;
-    }
-  }
-
   const reportsEl = document.getElementById("reports");
   if (!reportsEl) return;
+  const nodeReportsEl = document.getElementById("node-reports");
 
   let globalLatestTimestamp = null;
   let allColors = [];
+  let nodeReportCount = 0;
 
-  const configList = [];
-  for (let ii = 0; ii < state.configCache.length; ii++) {
-    const parts = state.configCache[ii].split("=");
-    if (parts.length < 2) continue;
-    const key = parts[0];
-    const url = parts[1];
-    const desc = parts[2] || "FLAME Console";
-    configList.push({ key, url, desc });
-  }
+  const configList = CONFIG.reports.map(({ key, desc }) => ({
+    key,
+    url: CONFIG.consoleUrl,
+    desc,
+  }));
 
   // Fetch all logs in parallel to optimize page speed
   await Promise.all(configList.map(item => fetchLog(item.key)));
 
   // Render them sequentially in order (they will instantly retrieve from rawLogCache)
   for (const { key, url, desc } of configList) {
-    const normalized = await genReportLog(reportsEl, key, url, desc);
+    // Per-node cards render in their own section under the latency box; if the
+    // node container is missing they fall back to the main reports container.
+    const nodeCard = isNodeKey(key);
+    const targetEl = nodeCard && nodeReportsEl ? nodeReportsEl : reportsEl;
+    const normalized = await genReportLog(targetEl, key, url, desc);
     const ts = normalized.latestTimestamp;
     if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {
       globalLatestTimestamp = ts;
     }
-    
+
+    if (nodeCard) {
+      nodeReportCount++;
+      continue;  // Node availability is excluded from the overall E2E badge.
+    }
+
     let compColor = "nodata";
     if (key === "latency") {
       compColor = getLatencyColor(normalized.overallDuration);
@@ -274,6 +279,12 @@ export async function genAllReports() {
       compColor = getColor(normalized.overallUptime);
     }
     allColors.push(compColor);
+  }
+
+  // Reveal the node section only when at least one node report was rendered.
+  const nodeSection = document.getElementById("node-section");
+  if (nodeSection) {
+    nodeSection.style.display = nodeReportCount > 0 ? "" : "none";
   }
 
   // Update overall badge & pulsing dot
@@ -340,7 +351,6 @@ export function initResolutionToggle() {
 // ─── Auto-Refresh ──────────────────────────────────────────────────────
 export function forceRefresh() {
   state.rawLogCache = {};
-  state.configCache = [];
   genMessages();
   genAllReports();
 }

@@ -11,6 +11,10 @@ class ConnectionAnalyzer(StarAnalyzer):
 class ConnectionAggregator(StarAggregator):
     def aggregation_method(self, analysis_results):
         node_results = {res["node_id"]: res["status"] for res in analysis_results}
+        # The aggregator never runs analysis_method, so it is absent from the
+        # analyzer results. Reaching this method proves the aggregator itself is
+        # up, so record its own id explicitly.
+        node_results[self.flame.get_id()] = "ok"
         assert len(node_results) > 0, "No node connection result received."
         return json.dumps(
             {

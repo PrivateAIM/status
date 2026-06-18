@@ -577,6 +577,38 @@ body.dark-theme .statusSquare:hover {
   box-shadow: 0 0 1px var(--glow-nodata);
 }
 
+/* Per-node availability section */
+.node-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.node-section-divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 4px 0 0 0;
+  width: 100%;
+}
+
+.node-section-header {
+  padding: 0 4px;
+}
+
+.node-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: var(--text-main);
+}
+
+.node-section-subtitle {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 /* Tooltip design */
 .tooltip {
   position: absolute;

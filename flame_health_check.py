@@ -50,8 +50,15 @@ step_durations = {
     "latency": 0.0,
 }
 
+# Per-node availability is tracked as its own report stream so each target node
+# gets an independent up/down history. Nodes stay "unknown" until results are
+# parsed; their duration is left empty since the connection test is pass/fail.
+for _node_name in TARGET_NODE_NAMES:
+    statuses[f"node_{_node_name}"] = "unknown"
+    step_durations[f"node_{_node_name}"] = None
 
-def append_log(key: str, status: str, duration: float, date_str: str):
+
+def append_log(key: str, status: str, duration: float | None, date_str: str):
     log_dir = os.path.join("docs", "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f"{key}_report.log")
@@ -63,7 +70,8 @@ def append_log(key: str, status: str, duration: float, date_str: str):
 
     # Keep last 1999 lines to maintain 2000 lines max including the new one
     existing_lines = existing_lines[-1999:]
-    existing_lines.append(f"{date_str}, {status}, {duration:.2f}\n")
+    duration_str = f"{duration:.2f}" if duration is not None else ""
+    existing_lines.append(f"{date_str}, {status}, {duration_str}\n")
 
     with open(log_path, "w", encoding="utf-8") as f:
         f.writelines(existing_lines)
@@ -72,8 +80,23 @@ def append_log(key: str, status: str, duration: float, date_str: str):
 def write_all_reports(final_statuses: dict[str, str], final_durations: dict[str, float]):
     date_str = time.strftime("%Y-%m-%d %H:%M", time.gmtime())
     for key in final_statuses.keys():
-        append_log(key, final_statuses[key], final_durations[key], date_str)
-        print(f"Logged status for {key}: {final_statuses[key]} ({final_durations[key]:.2f}s)")
+        duration = final_durations[key]
+        append_log(key, final_statuses[key], duration, date_str)
+        duration_str = f"{duration:.2f}s" if duration is not None else "n/a"
+        print(f"Logged status for {key}: {final_statuses[key]} ({duration_str})")
+
+
+def fetch_analysis(core_client, analysis_id):
+    # The hub occasionally returns 404 (-> None) for an analysis that
+    # demonstrably exists mid-poll (it was just created, built and distributed).
+    # Absorb such a transient miss with a short retry; a genuinely missing
+    # analysis still fails after the retry budget is exhausted.
+    for _ in range(5):
+        analysis = core_client.get_analysis(analysis_id)
+        if analysis is not None:
+            return analysis
+        time.sleep(2.0)
+    raise AssertionError(f"Analysis {analysis_id} not retrievable from hub.")
 
 
 def main():
@@ -246,7 +269,7 @@ def main():
             distribution_started = False
 
             while time.time() - poll_start_time < TIMEOUT_MEDIUM_SECONDS:
-                analysis = core_client.get_analysis(analysis.id)
+                analysis = fetch_analysis(core_client, analysis.id)
                 assert analysis.build_status != "failed", "Analysis build failed."
                 assert analysis.distribution_status != "failed", "Analysis distribution failed."
 
@@ -275,7 +298,7 @@ def main():
         try:
             poll_start_time = time.time()
             while time.time() - poll_start_time < TIMEOUT_LONG_SECONDS:
-                analysis = core_client.get_analysis(analysis.id)
+                analysis = fetch_analysis(core_client, analysis.id)
                 assert analysis.execution_status != "failed", "Analysis execution failed."
 
                 if analysis.execution_status in ["executed", "finished"]:
@@ -320,6 +343,15 @@ def main():
                 assert (
                     payload.get("overall_success") is True
                 ), "Result payload reports failure or is missing success."
+
+                # Derive per-node availability: a target node is "up" only if it
+                # reported an "ok" status back through the aggregator. Nodes that
+                # never answered are absent from node_results and counted as down.
+                node_results = payload["node_results"]
+                for node in selected_nodes:
+                    node_id = str(node.id)
+                    responded_ok = node_id in node_results and node_results[node_id] == "ok"
+                    statuses[f"node_{node.name}"] = "success" if responded_ok else "failed"
             finally:
                 if os.path.exists(result_tar_path):
                     os.remove(result_tar_path)
