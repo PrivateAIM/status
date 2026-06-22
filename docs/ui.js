@@ -44,7 +44,9 @@ function applyTemplateSubstitutions(node, parameters) {
 
 function templatizeString(text, parameters) {
   if (parameters) {
-    for (const [key, val] of Object.entries(parameters)) {
+    // Replace longer keys first so e.g. "$status" doesn't clobber "$statusDetail".
+    const entries = Object.entries(parameters).sort((a, b) => b[0].length - a[0].length);
+    for (const [key, val] of entries) {
       text = text.replaceAll("$" + key, val);
     }
   }
