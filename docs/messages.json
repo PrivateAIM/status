@@ -1,1 +1,8 @@
-[]
+[
+    {
+        "date": "2026-06-22",
+        "type": "maintenance",
+        "title": "Page Migration",
+        "text": "We are migrating the status page to a new platform. During this time, some pages may be temporarily unavailable."
+    }
+]
