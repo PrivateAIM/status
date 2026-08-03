@@ -21,11 +21,11 @@ The results are merged into six step cards and a per-node section:
 | Check | What it verifies | Timeout |
 | --- | --- | --- |
 | `login` | Authentication against the FLAME Hub and basic API access (node listing). Shared, once. | 10 s |
-| `upload` | Per pair: analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s |
-| `distribute` | Per pair: analysis image build and distribution to the paired nodes. | 60 s |
-| `execute` | Per pair: execution of the analysis on the paired nodes. | 120 s |
-| `results` | Per pair: download of the result tarball and confirmation that both paired nodes reported `ok`. | — |
-| `latency` | Per pair: E2E duration stays below 300 s. | 300 s |
+| `upload` | Per pair: analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s per wait |
+| `distribute` | Per pair: analysis image build and distribution to the paired nodes. | 120 s per phase |
+| `execute` | Per pair: execution of the analysis on the paired nodes. | 240 s |
+| `results` | Per pair: download of the result tarball and confirmation that both paired nodes reported `ok`. | 60 s |
+| `latency` | Per pair: E2E duration stays below the sum of the per-step budgets. | 600 s |
 
 The five pipeline step cards (`upload`…`latency`) are **aggregated across the parallel pair runs**
 (status merged, duration averaged). The per-node cards at the bottom show each node's own up/down
@@ -47,6 +47,22 @@ Results are appended as `date, status, duration` lines to `docs/logs/<check>_rep
 2. **GitHub Pages**: Settings → Pages → deploy from the `main` branch, `/docs` folder.
 3. Optionally adjust `TARGET_NODE_NAMES` and `PROJECT_NAME` in `flame_health_check.py`, and the report cards / console link in `CONFIG.reports` / `CONFIG.consoleUrl` in `docs/constants.js`.
 4. Trigger a first run manually via the *Scheduled Health Check* workflow (`workflow_dispatch`).
+
+## Hub compatibility
+
+`flame-hub-client` is versioned against the Hub API, so the pin in
+[`requirements.txt`](requirements.txt) has to follow the cluster. The cluster's version is
+readable without credentials at <https://core.staging.privateaim.net/>.
+
+| Client | Hub | Notes |
+| --- | --- | --- |
+| `0.2.x` | ≤ 0.10 | Predates the robot → client transition; `find_*` silently drops unknown filter keywords instead of filtering. |
+| `0.3.x` – `0.4.x` | 0.12.x | **Current pin: `0.4.1`.** |
+| `0.5.x` | ≥ 0.13 | Hub 0.13 renamed every field to camelCase and wrapped single-record responses; do not use before the cluster is upgraded. |
+
+A mismatch does not necessarily fail loudly at `login`: the shared setup phase runs after
+it, so the usual symptom is a run that logs `login, success` and leaves every later step
+at "no data". The traceback is only in the Actions run log, not on the status page.
 
 ## Manual messages
 

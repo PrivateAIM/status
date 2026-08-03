@@ -16,7 +16,6 @@ from config import (
     TIMEOUT_LONG_SECONDS,
     TIMEOUT_MEDIUM_SECONDS,
     TIMEOUT_RESULTS_SECONDS,
-    UPLOAD_SETTLE_SECONDS,
 )
 from hub_client import fetch_analysis, make_clients
 
@@ -57,32 +56,38 @@ def _upload(core_client, storage_client, project_id, master_image_id, compute_no
         assert time.time() < code_bucket_deadline, "Timeout waiting for code bucket creation."
         time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
 
-    code_bucket_data = code_bucket.model_dump()
-    code_bucket_core_id = str(code_bucket_data["id"])
-    storage_bucket_id = str(code_bucket_data["bucket_id"])
-
     script_path = os.path.join("flame_checks", CONNECTION_SCRIPT_NAME)
     assert os.path.exists(script_path), f"Connection test script not found at: {script_path}"
     with open(script_path, "rb") as f:
         script_bytes = f.read()
 
     upload_response = storage_client.upload_to_bucket(
-        storage_bucket_id, {"file_name": CONNECTION_SCRIPT_NAME, "content": script_bytes}
+        str(code_bucket.bucket_id), {"file_name": CONNECTION_SCRIPT_NAME, "content": script_bytes}
     )
     assert len(upload_response) > 0, "Upload response from storage was empty."
 
-    time.sleep(UPLOAD_SETTLE_SECONDS)
-    response = core_client._client.get(
-        f"analysis-bucket-files?filter[analysis_bucket_id]={code_bucket_core_id}"
+    # The entrypoint flag lives on the hub's analysis-bucket-file record, not on
+    # the storage file. The hub mirrors the upload into that record
+    # asynchronously, so poll for it instead of trusting a fixed settle time.
+    entrypoint_deadline = time.time() + TIMEOUT_BUCKET_SECONDS
+    while True:
+        bucket_files = core_client.find_analysis_bucket_files(
+            filter={"analysis_bucket_id": code_bucket.id}
+        )
+        entrypoint_files = [f for f in bucket_files if f.path == CONNECTION_SCRIPT_NAME]
+        if len(entrypoint_files) > 0:
+            break
+        assert time.time() < entrypoint_deadline, (
+            f"Timeout waiting for {CONNECTION_SCRIPT_NAME} to register with the analysis."
+        )
+        time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
+
+    assert len(entrypoint_files) == 1, (
+        f"Expected exactly one entrypoint file record for {CONNECTION_SCRIPT_NAME}."
     )
-    bucket_file_payload = response.json()["data"]
-    file_ids = [
-        entry["id"] for entry in bucket_file_payload if entry["path"] == CONNECTION_SCRIPT_NAME
-    ]
-    assert len(file_ids) == 1, f"Expected exactly one entrypoint file record for {CONNECTION_SCRIPT_NAME}."
 
     core_client.update_analysis_bucket_file(
-        analysis_bucket_file_id=file_ids[0],
+        analysis_bucket_file_id=entrypoint_files[0].id,
         is_entrypoint=True,
     )
     return analysis

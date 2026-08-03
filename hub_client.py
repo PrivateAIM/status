@@ -66,7 +66,7 @@ def prepare_project(core_client, target_node_ids: list[str]):
     # analyses, and ensure all target nodes are members. Each per-node analysis
     # is later trimmed down to just its pair (see run_pair). Runs once, before
     # the parallel pair runs, so siblings are never deleted mid-run.
-    projects = core_client.find_projects(name=PROJECT_NAME)
+    projects = core_client.find_projects(filter={"name": PROJECT_NAME})
     matching_projects = [p for p in projects if p.name == PROJECT_NAME]
     if len(matching_projects) == 0:
         project = core_client.create_project(name=PROJECT_NAME)
@@ -75,10 +75,10 @@ def prepare_project(core_client, target_node_ids: list[str]):
         project = matching_projects[0]
         cleanup_stale_analyses(core_client, project)
 
-    existing_project_nodes = core_client.get_project_nodes()
-    member_ids = [
-        str(pn.node_id) for pn in existing_project_nodes if str(pn.project_id) == str(project.id)
-    ]
+    # Filter server-side: the unfiltered listing is paginated (50 per page), so
+    # a busy hub would hide existing members and make the loop below re-add them.
+    existing_project_nodes = core_client.find_project_nodes(filter={"project_id": project.id})
+    member_ids = [str(pn.node_id) for pn in existing_project_nodes]
     for node_id in target_node_ids:
         if node_id not in member_ids:
             core_client.create_project_node(project_id=project.id, node_id=node_id)

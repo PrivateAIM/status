@@ -1,1 +1,5 @@
-flame-hub-client==0.2.15
+# The client tracks the Hub API version, so this pin follows the staging
+# cluster: 0.4.x is built against Hub 0.12.x (staging currently reports 0.12.0).
+# 0.2.x targets Hub <= 0.10; 0.5.x targets Hub 0.13, which renamed every field
+# to camelCase, so it must not be used before the cluster is upgraded.
+flame-hub-client==0.4.1
