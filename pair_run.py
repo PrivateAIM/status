@@ -93,6 +93,21 @@ def _upload(core_client, storage_client, project_id, master_image_id, compute_no
     return analysis
 
 
+def _node_states(core_client, analysis) -> str:
+    # Per-node state for a phase timeout. A stalled phase is only actionable if
+    # the message says which node never got there, so this is worth an extra
+    # request on the failure path.
+    try:
+        analysis_nodes = core_client.find_analysis_nodes(filter={"analysis_id": analysis.id})
+    except BaseException as exc:
+        return f"node states unavailable: {exc}"
+    return "; ".join(
+        f"{an.node_id} approval={an.approval_status} exec={an.execution_status} "
+        f"artifact={an.artifact_tag}"
+        for an in analysis_nodes
+    )
+
+
 def _distribute(core_client, analysis, aggregator, compute_node):
     # Trim the analysis to exactly this pair, lock its config, then drive the
     # build and distribution phases to completion.
@@ -127,7 +142,10 @@ def _distribute(core_client, analysis, aggregator, compute_node):
         assert analysis.build_status != "failed", "Analysis build failed."
         if analysis.build_status == "executed":
             break
-        assert time.time() < build_deadline, "Timeout waiting for build phase."
+        assert time.time() < build_deadline, (
+            f"Timeout waiting for build phase "
+            f"(status={analysis.build_status}, progress={analysis.build_progress})."
+        )
         time.sleep(POLL_INTERVAL_SECONDS)
 
     core_client.send_analysis_command(analysis.id, "distributionStart")
@@ -137,7 +155,15 @@ def _distribute(core_client, analysis, aggregator, compute_node):
         assert analysis.distribution_status != "failed", "Analysis distribution failed."
         if analysis.distribution_status == "executed":
             break
-        assert time.time() < distribution_deadline, "Timeout waiting for distribution phase."
+        # A phase that never leaves "starting" means the hub accepted the command
+        # but its worker never picked the job up; one that climbs through
+        # "started"/progress and stops is a stalled registry push. The two need
+        # different people to look at them, so record which one it was.
+        assert time.time() < distribution_deadline, (
+            f"Timeout waiting for distribution phase "
+            f"(status={analysis.distribution_status}, progress={analysis.distribution_progress}, "
+            f"registry={analysis.registry_id}) [{_node_states(core_client, analysis)}]"
+        )
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
@@ -152,7 +178,11 @@ def _execute(core_client, analysis):
 
         time.sleep(POLL_INTERVAL_SECONDS)
     else:
-        raise AssertionError("Timeout waiting for execution phase.")
+        raise AssertionError(
+            f"Timeout waiting for execution phase "
+            f"(status={analysis.execution_status}, progress={analysis.execution_progress}) "
+            f"[{_node_states(core_client, analysis)}]"
+        )
 
 
 def _fetch_results(core_client, storage_client, analysis, aggregator, compute_node):
