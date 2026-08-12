@@ -6,6 +6,8 @@ import tarfile
 import tempfile
 from contextlib import contextmanager
 
+from flame_hub.types import AnalysisBucketType
+
 from config import (
     BUCKET_POLL_INTERVAL_SECONDS,
     CONNECTION_SCRIPT_NAME,
@@ -48,7 +50,7 @@ def _upload(core_client, storage_client, project_id, master_image_id, compute_no
     code_bucket = None
     while True:
         buckets = core_client.find_analysis_buckets(filter={"analysis_id": analysis.id})
-        code_buckets = [b for b in buckets if b.type == "CODE"]
+        code_buckets = [b for b in buckets if b.type == AnalysisBucketType.CODE]
         if len(code_buckets) > 0:
             code_bucket = code_buckets[0]
             assert code_bucket.bucket_id is not None, "Bucket ID is missing on CODE bucket."
@@ -173,7 +175,9 @@ def _execute(core_client, analysis):
         analysis = fetch_analysis(core_client, analysis.id)
         assert analysis.execution_status != "failed", "Analysis execution failed."
 
-        if analysis.execution_status in ["executed", "finished"]:
+        # "executed" is the terminal success state of the hub's ProcessStatus;
+        # there is no separate "finished".
+        if analysis.execution_status == "executed":
             break
 
         time.sleep(POLL_INTERVAL_SECONDS)
@@ -189,7 +193,7 @@ def _fetch_results(core_client, storage_client, analysis, aggregator, compute_no
     # Download the result tarball, parse its single payload, and verify that
     # both pair members reported back through the aggregator.
     buckets = core_client.find_analysis_buckets(filter={"analysis_id": analysis.id})
-    result_buckets = [b for b in buckets if b.type == "RESULT"]
+    result_buckets = [b for b in buckets if b.type == AnalysisBucketType.RESULT]
     assert len(result_buckets) > 0, f"No RESULT bucket found for analysis {analysis.id}."
     result_bucket = result_buckets[0]
 

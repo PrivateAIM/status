@@ -50,19 +50,28 @@ Results are appended as `date, status, duration` lines to `docs/logs/<check>_rep
 
 ## Hub compatibility
 
-`flame-hub-client` is versioned against the Hub API, so the pin in
-[`requirements.txt`](requirements.txt) has to follow the cluster. The cluster's version is
-readable without credentials at <https://core.staging.privateaim.net/>.
+`flame-hub-client` is versioned against the Hub API and is **deliberately unpinned**: each
+CI run installs the current release. Historically the pin was the problem — it sat still
+while the cluster was upgraded, and the check went dark until someone noticed.
 
-| Client | Hub | Notes |
-| --- | --- | --- |
-| `0.2.x` | ≤ 0.10 | Predates the robot → client transition; `find_*` silently drops unknown filter keywords instead of filtering. |
-| `0.3.x` – `0.4.x` | 0.12.x | **Current pin: `0.4.1`.** |
-| `0.5.x` | ≥ 0.13 | Hub 0.13 renamed every field to camelCase and wrapped single-record responses; do not use before the cluster is upgraded. |
+Unpinning inverts the risk rather than removing it. The client can now run *ahead* of the
+cluster, so when a run fails, compare the two. Both service versions are readable without
+credentials:
 
-A mismatch does not necessarily fail loudly at `login`: the shared setup phase runs after
-it, so the usual symptom is a run that logs `login, success` and leaves every later step
-at "no data". The traceback is only in the Actions run log, not on the status page.
+```bash
+curl https://core.staging.privateaim.net/ && curl https://auth.staging.privateaim.net/
+```
+
+Known breaks, for reading old logs: Hub `0.12` replaced robots with clients, and Hub `0.13`
+renamed every field (and the `filter`/`sort`/`include` query vocabulary) from snake_case to
+camelCase and wrapped single-record responses in `{data, meta}`. Client `0.5.x` is the first
+release that speaks `0.13`.
+
+A version mismatch rarely fails where you would expect. `login` is the first step that
+touches the API, so a model mismatch surfaces there — a fast `login, failed` (about a
+second) rather than a timeout. If the mismatch is in a later endpoint instead, `login`
+passes and every subsequent step lands on "no data". Either way the traceback is only in
+the Actions run log, not on the status page.
 
 ## Manual messages
 

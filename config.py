@@ -20,6 +20,10 @@ TARGET_NODE_NAMES = ["aggregator-1", "default-1", "default-2"]
 PROJECT_NAME = "health-check"
 CONNECTION_SCRIPT_NAME = "00_test_connection.py"
 
+# Page size for exhaustive listings. Matches the hub's own default; it reports
+# the true count in meta.total, which is what find_all pages against.
+PAGE_SIZE = 50
+
 # ---------------------------------------------------------
 # Timeouts & poll cadences (seconds)
 # ---------------------------------------------------------

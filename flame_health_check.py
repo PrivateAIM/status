@@ -3,7 +3,7 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 from config import TARGET_NODE_NAMES, TIMEOUT_SHORT_SECONDS
-from hub_client import get_master_image_id, make_clients, prepare_project
+from hub_client import find_all, get_master_image_id, make_clients, prepare_project
 from pair_run import run_pair
 from aggregate import init_tracking, merge_records
 from reporting import write_all_reports
@@ -15,7 +15,11 @@ def authenticate(statuses, step_durations):
     t_start = time.time()
     try:
         core_client, _ = make_clients()
-        nodes = core_client.get_nodes()
+        # The target nodes are matched by name below, and the hub has no "in"
+        # filter operator to do that server-side, so every node has to be seen -
+        # a first-page-only listing would silently lose a target on a cluster
+        # that outgrows one page.
+        nodes = find_all(core_client.find_nodes)
         assert len(nodes) > 0, "No nodes returned from core client."
         login_elapsed = time.time() - t_start
         assert (

@@ -8,12 +8,29 @@ from config import (
     ANALYSIS_RETRY_DELAY_SECONDS,
     AUTH_URL,
     CORE_URL,
+    PAGE_SIZE,
     PASSWORD,
     PROJECT_NAME,
     STALE_ANALYSIS_MAX_AGE_SECONDS,
     STORAGE_URL,
     USERNAME,
 )
+
+
+def find_all(find_method, **params):
+    # Every hub listing is paginated (50 by default) and reports the real count
+    # in meta.total. A plain call therefore returns a silently truncated first
+    # page, so page until the reported total is accounted for.
+    resources, meta = find_method(meta=True, page={"limit": PAGE_SIZE, "offset": 0}, **params)
+    while len(resources) < meta.total:
+        page, meta = find_method(
+            meta=True, page={"limit": PAGE_SIZE, "offset": len(resources)}, **params
+        )
+        assert len(page) > 0, (
+            f"Hub reports {meta.total} resources but stopped returning them at {len(resources)}."
+        )
+        resources.extend(page)
+    return resources
 
 
 def make_clients():
@@ -47,7 +64,9 @@ def cleanup_stale_analyses(core_client, project):
     # phase. Runs are serialized by the workflow concurrency group, so anything
     # that old is a leftover from an earlier, finished run. Done once, before any
     # pair run creates its own analysis, so the current run is never touched.
-    existing_analyses = core_client.find_analyses(filter={"project_id": project.id})
+    # Unbounded by nature: a run that dies after creating its analysis leaves one
+    # behind, so a backlog must never hide behind the first page.
+    existing_analyses = find_all(core_client.find_analyses, filter={"project_id": project.id})
     now = datetime.now(timezone.utc)
     for old_analysis in existing_analyses:
         age_seconds = (now - old_analysis.created_at).total_seconds()
