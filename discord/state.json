@@ -3,7 +3,7 @@
   "message_id": "1567544856602087595",
   "confirmed_statuses": {
     "check_runner": "success",
-    "login": "success",
+    "login": "failed",
     "upload": "success",
     "distribute": "success",
     "execute": "failed",
@@ -11,5 +11,5 @@
     "node_default-1": "failed",
     "node_default-2": "failed"
   },
-  "notification_id": "1567591227250184454"
+  "notification_id": "1567638969305399549"
 }
