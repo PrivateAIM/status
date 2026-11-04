@@ -4,7 +4,6 @@ import uuid
 import json
 import tarfile
 import tempfile
-from contextlib import contextmanager
 
 from flame_hub.types import AnalysisBucketType
 
@@ -20,22 +19,7 @@ from config import (
     TIMEOUT_RESULTS_SECONDS,
 )
 from hub_client import fetch_analysis, make_clients
-
-
-@contextmanager
-def _timed_step(record: dict, step: str):
-    # Record the wall-clock duration of a step regardless of outcome, and mark
-    # the step success on a clean exit or failed when an error propagates. The
-    # error is re-raised so run_pair can abort the remaining steps.
-    t_start = time.time()
-    try:
-        yield
-        record["step_status"][step] = "success"
-    except BaseException:
-        record["step_status"][step] = "failed"
-        raise
-    finally:
-        record["step_duration"][step] = time.time() - t_start
+from step_tracking import timed_step
 
 
 def _upload(core_client, storage_client, project_id, master_image_id, compute_node):
@@ -258,18 +242,18 @@ def run_pair(aggregator, compute_node, project_id, master_image_id) -> dict:
     }
     print(f"[*] {compute_node.name}: starting pair run.")
 
-    core_client, storage_client = make_clients()
     run_start_time = time.time()
     try:
-        with _timed_step(record, "upload"):
+        with timed_step(record, "upload"):
+            core_client, storage_client = make_clients()
             analysis = _upload(
                 core_client, storage_client, project_id, master_image_id, compute_node
             )
-        with _timed_step(record, "distribute"):
+        with timed_step(record, "distribute"):
             _distribute(core_client, analysis, aggregator, compute_node)
-        with _timed_step(record, "execute"):
+        with timed_step(record, "execute"):
             _execute(core_client, analysis)
-        with _timed_step(record, "results"):
+        with timed_step(record, "results"):
             _fetch_results(core_client, storage_client, analysis, aggregator, compute_node)
 
         _record_latency(record, run_start_time)

@@ -10,6 +10,14 @@ export function create(tag, className) {
   return element;
 }
 
+function setText(element, value) {
+  if (element && element.textContent !== value) element.textContent = value;
+}
+
+function setClass(element, value) {
+  if (element && element.className !== value) element.className = value;
+}
+
 export function templatize(templateId, parameters) {
   const template = document.getElementById(templateId);
   if (!template) return null;
@@ -108,9 +116,10 @@ export function applySquareData(square, slotData) {
   const durationVal = slotData ? slotData.duration : null;
   const color = key === "latency" ? getLatencyColor(durationVal) : getColor(uptimeVal);
 
-  square.className = "statusSquare " + color;
-  square.dataset.status = color;
-  square.dataset.duration = durationVal !== null && durationVal !== undefined ? durationVal : "";
+  setClass(square, "statusSquare " + color);
+  if (square.dataset.status !== color) square.dataset.status = color;
+  const duration = durationVal !== null && durationVal !== undefined ? String(durationVal) : "";
+  if (square.dataset.duration !== duration) square.dataset.duration = duration;
 }
 
 export function constructStatusSquare(key, relSlot, slotData) {
@@ -157,18 +166,18 @@ export function updateStatusContainer(reportEl, uptimeData, desc) {
 
   const badge = reportEl.querySelector(".status-indicator-badge");
   if (badge) {
-    badge.className = "status-indicator-badge " + color;
-    badge.innerText = getStatusText(color);
+    setClass(badge, "status-indicator-badge " + color);
+    setText(badge, getStatusText(color));
   }
 
   const urlEl = reportEl.querySelector(".sectionUrl a");
   if (urlEl && desc) {
-    urlEl.innerText = desc;
+    setText(urlEl, desc);
   }
 
   const uptimeEl = reportEl.querySelector(".statusUptime");
   if (uptimeEl) {
-    uptimeEl.innerText = getStatusDetail(key, uptimeData);
+    setText(uptimeEl, getStatusDetail(key, uptimeData));
   }
 
   reportEl.querySelectorAll(".statusSquare").forEach((square) => {
@@ -178,10 +187,11 @@ export function updateStatusContainer(reportEl, uptimeData, desc) {
 }
 
 // ─── Message Rendering ──────────────────────────────────────────────────
+let renderedMessages = null;
+
 export async function genMessages() {
   const container = document.getElementById("messages");
   if (!container) return;
-  container.innerHTML = "";
   
   try {
     const response = await fetch("messages.json?t=" + Date.now());
@@ -189,6 +199,9 @@ export async function genMessages() {
 
     const messages = await response.json();
     messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const signature = JSON.stringify(messages);
+    if (signature === renderedMessages) return;
+    const fragment = document.createDocumentFragment();
 
     for (const msg of messages) {
       const card = create("div", "messageCard " + msg.type);
@@ -206,22 +219,31 @@ export async function genMessages() {
 
       card.appendChild(header);
       card.appendChild(text);
-      container.appendChild(card);
+      fragment.appendChild(card);
     }
+    // Commit only after the new content is ready; keep notices on fetch failure.
+    container.replaceChildren(fragment);
+    renderedMessages = signature;
   } catch (err) {
     console.error("Failed to load messages:", err);
   }
 }
 
 // ─── Log Fetching and Report Building ──────────────────────────────────
-export async function fetchLog(key) {
+export async function fetchLog(key, refresh = false) {
   let statusLines = state.rawLogCache[key];
-  if (statusLines === undefined) {
-    const response = await fetch(CONFIG.logBaseUrl + key + "_report.log?t=" + Date.now());
-    statusLines = response.ok ? await response.text() : "";
-    state.rawLogCache[key] = statusLines;
+  if (refresh || statusLines === undefined) {
+    try {
+      const response = await fetch(CONFIG.logBaseUrl + key + "_report.log?t=" + Date.now());
+      if (!response.ok) throw new Error(`Log ${key}: HTTP ${response.status}`);
+      statusLines = await response.text();
+      state.rawLogCache[key] = statusLines;
+    } catch (err) {
+      console.error("Failed to refresh log; keeping previous data:", err);
+      if (statusLines === undefined) state.rawLogCache[key] = "";
+    }
   }
-  return statusLines;
+  return statusLines ?? "";
 }
 
 export async function genReportLog(container, key, url, desc) {
@@ -239,7 +261,7 @@ export async function genReportLog(container, key, url, desc) {
   return normalized;
 }
 
-export async function genAllReports() {
+export async function genAllReports(refresh = false) {
   const reportsEl = document.getElementById("reports");
   if (!reportsEl) return;
   const nodeReportsEl = document.getElementById("node-reports");
@@ -256,7 +278,7 @@ export async function genAllReports() {
   }));
 
   // Fetch all logs in parallel to optimize page speed
-  await Promise.all(configList.map(item => fetchLog(item.key)));
+  await Promise.all(configList.map(item => fetchLog(item.key, refresh)));
 
   // Render them sequentially in order (they will instantly retrieve from rawLogCache)
   for (const { key, url, desc } of configList) {
@@ -310,13 +332,13 @@ export async function genAllReports() {
 
   const badgeEl = document.getElementById("overall-status-badge");
   if (badgeEl) {
-    badgeEl.className = "overall-badge status-indicator-badge " + overallColor;
-    badgeEl.innerText = getStatusText(overallColor);
+    setClass(badgeEl, "overall-badge status-indicator-badge " + overallColor);
+    setText(badgeEl, getStatusText(overallColor));
   }
 
   const pulseEl = document.querySelector(".pulse-indicator");
   if (pulseEl) {
-    pulseEl.className = "pulse-indicator " + overallColor;
+    setClass(pulseEl, "pulse-indicator " + overallColor);
   }
 
   if (globalLatestTimestamp) {
@@ -364,10 +386,15 @@ export function initResolutionToggle() {
 }
 
 // ─── Auto-Refresh ──────────────────────────────────────────────────────
+let refreshInFlight = null;
+
 export function forceRefresh() {
-  state.rawLogCache = {};
-  genMessages();
-  genAllReports();
+  if (!refreshInFlight) {
+    refreshInFlight = Promise.all([genMessages(), genAllReports(true)])
+      .catch(err => console.error("Failed to refresh reports:", err))
+      .finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
 }
 
 export function initAutoRefresh() {

@@ -20,7 +20,7 @@ The results are merged into six step cards and a per-node section:
 
 | Check | What it verifies | Timeout |
 | --- | --- | --- |
-| `login` | Authentication against the FLAME Hub and basic API access (node listing). Shared, once. | 10 s |
+| `login` | Authentication, node selection, shared project preparation/cleanup, and master image lookup. Shared, once. | 10 s for authentication and node listing |
 | `upload` | Per pair: analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s per wait |
 | `distribute` | Per pair: analysis image build and distribution to the paired nodes. | 120 s per phase |
 | `execute` | Per pair: execution of the analysis on the paired nodes. | 240 s |
@@ -32,6 +32,10 @@ The five pipeline step cards (`upload`…`latency`) are **aggregated across the 
 and latency; `aggregator-1` counts as up if any of its pairs succeeds. The **overall** badge is the
 aggregation of the node verdicts: all up → operational, some down → partial, all down or `login`
 failing → major outage.
+
+All work until the next step starts belongs to the current step. In particular, permission errors
+during shared project preparation or master image lookup fail `login`; `upload` and later steps
+remain `unknown`. The login duration includes this shared setup.
 
 If a step fails within a pair run, that run's subsequent steps are recorded as `unknown` (shown as
 "no data" on the page, excluded from uptime statistics); an offline node is recorded down without
@@ -69,8 +73,8 @@ release that speaks `0.13`.
 
 A version mismatch rarely fails where you would expect. `login` is the first step that
 touches the API, so a model mismatch surfaces there — a fast `login, failed` (about a
-second) rather than a timeout. If the mismatch is in a later endpoint instead, `login`
-passes and every subsequent step lands on "no data". Either way the traceback is only in
+second) rather than a timeout. A mismatch in a shared setup endpoint also fails `login`;
+a mismatch during a pair run fails the active step. The traceback is only in
 the Actions run log, not on the status page.
 
 ## Manual messages

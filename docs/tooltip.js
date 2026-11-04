@@ -2,8 +2,33 @@ import { state } from "./state.js";
 import { formatSlotDate, getSlotMs } from "./data.js";
 import { getStatusText, getStatusDescriptiveText } from "./constants.js";
 
+function hasTooltipSelection() {
+  const selection = window.getSelection();
+  const tooltip = document.getElementById("tooltip");
+  return selection && !selection.isCollapsed && tooltip &&
+    (tooltip.contains(selection.anchorNode) || tooltip.contains(selection.focusNode));
+}
+
+export function initTooltip() {
+  const tooltip = document.getElementById("tooltip");
+  if (!tooltip) return;
+  tooltip.addEventListener("mouseenter", () => clearTimeout(state.tooltipTimeout));
+  tooltip.addEventListener("mouseleave", hideTooltip);
+  // Keep selected text available for the browser's Copy command/context menu.
+  document.addEventListener("selectionchange", () => {
+    if (!hasTooltipSelection() && !tooltip.matches(":hover")) hideTooltip();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      clearTimeout(state.tooltipTimeout);
+      tooltip.classList.remove("is-visible");
+    }
+  });
+}
+
 export function showTooltip(element, key, date, color, duration) {
   clearTimeout(state.tooltipTimeout);
+  if (hasTooltipSelection()) return;
   const toolTipDiv = document.getElementById("tooltip");
   if (!toolTipDiv) return;
 
@@ -46,13 +71,16 @@ export function showTooltip(element, key, date, color, duration) {
     arrow.style.left = Math.min(Math.max(squareCenter - left, 12), tooltipWidth - 12) + "px";
   }
 
-  toolTipDiv.style.opacity = "1";
+  toolTipDiv.classList.add("is-visible");
 }
 
 export function hideTooltip() {
+  clearTimeout(state.tooltipTimeout);
   state.tooltipTimeout = setTimeout(() => {
     const toolTipDiv = document.getElementById("tooltip");
-    if (toolTipDiv) toolTipDiv.style.opacity = "0";
+    if (toolTipDiv && !toolTipDiv.matches(":hover") && !hasTooltipSelection()) {
+      toolTipDiv.classList.remove("is-visible");
+    }
   }, 1000);
 }
 
