@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-STATUS_TITLE = "🔥 Staging E2E Status"
+STATUS_TITLE = "Staging E2E Status"
 
 
 def load_config(path=None):

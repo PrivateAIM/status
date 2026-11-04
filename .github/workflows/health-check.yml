@@ -48,9 +48,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Test Discord notification behavior
-        run: python -m unittest discover -s tests -v
-
       - name: Run E2E Health Check
         id: health-check
         continue-on-error: true

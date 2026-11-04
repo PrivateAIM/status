@@ -167,6 +167,7 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
                 embed = payload["embeds"][0]
                 # The cards contain current statuses, durations and history.
                 embed["fields"] = []
+                embed["footer"] = {"text": "More information: https://privateaim.github.io/status/"}
             else:
                 embed = {"color": payload["embeds"][0]["color"]}
                 payload["embeds"].append(embed)
@@ -203,7 +204,7 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
             alert["content"] = f"{STATUS_TITLE}: check failed: {names}."[:1900]
             mentions = [f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]
             if mentions:
-                alert["content"] = " ".join(mentions) + " " + alert["content"]
+                alert["content"] = " ".join(mentions) + "\n" + alert["content"]
             if roles:
                 alert["allowed_mentions"]["roles"] = roles
             if users:

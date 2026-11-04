@@ -125,7 +125,7 @@ def render_history(report, log_dir="docs/logs", config=None, *, preview=False):
     # Draw every glyph and block at the target resolution, rather than upscaling.
     emoji = fire_emoji(30 * scale)
     image.paste(emoji, (28 * scale, 22 * scale), emoji)
-    text((68, 20), STATUS_TITLE.removeprefix("🔥 "), 26, True, fill="#0f172a")
+    text((68, 20), STATUS_TITLE, 26, True, fill="#0f172a")
     subtitle = "SAMPLE DATA | Last 15 hours | 30-minute blocks" if preview else (
         "Last 15 hours | 30-minute blocks | oldest to newest"
     )

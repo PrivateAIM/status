@@ -104,99 +104,35 @@ python flame_health_check.py
 
 ## Discord notifications
 
-The health-check workflow can maintain one Discord status message and post separate incident
-and recovery notifications. No running bot service is needed; Pillow renders history images.
-The message and image heading are **🔥 Staging E2E Status**. The image uses the system's
-regular emoji font; the workflow installs `fonts-noto-color-emoji` on Linux. For local
-rendering on Debian/Ubuntu, install it with `sudo apt install fonts-noto-color-emoji`.
+Each health check updates one **Staging E2E Status** message with a single history image:
 
-1. Create an incoming webhook in the desired Discord channel (channel settings, Integrations,
-   Webhooks) and copy its URL.
-2. Add `DISCORD_WEBHOOK_URL` as a secret in the **FLAME Health Check** GitHub environment
-   (the same environment as the Hub credentials). Without it, Discord delivery is skipped.
-3. Optionally set environment variables under GitHub **Settings > Environments > FLAME Health
-   Check > Environment variables**:
-   - `DISCORD_ALERT_ROLE_ID`: numeric Discord role ID to mention on new failures. The role
-     must be mentionable or the webhook must have the relevant permission. Recovery and
-     routine updates do not mention the role.
-   - `DISCORD_ALERT_ROLE_IDS`: comma-separated role IDs for multiple teams/roles, such as
-     `123456789012345678,234567890123456789`. This also works alongside `DISCORD_ALERT_ROLE_ID`.
-   - `DISCORD_ALERT_USER_IDS`: comma-separated user IDs for individual people, such as
-     `345678901234567890,456789012345678901`.
-   - `DISCORD_STATUS_PAGE_URL`: public dashboard URL to include alongside the Actions run link.
-4. Run the workflow manually once to create the status message; you can pin it in Discord.
+- Login + Upload + Distribute
+- Execute + Results
+- E2E Latency
 
-Each subsequent run edits that same message with pipeline and node history cards, durations,
-and the check timestamp. Cards show **30 half-hour blocks (15 hours)** from the existing
-`docs/logs` files, oldest on the left and newest on the right. Green means success, amber
-means slow latency, red means any failure, and gray means no data. A failed run makes its
-entire history block red, even if other runs in that block succeeded. The two uptime
-percentages cover that window: successful runs divided by known results, then successful
-runs divided by all recorded results including unknowns. Empty time slots remain gray and
-do not count as recorded runs. Latency blocks use the dashboard's 160s/300s thresholds.
-All cards are included in **one high-resolution PNG** (2000 pixels wide by default);
-editing the message replaces the old attachment. Open it at full resolution to inspect the
-history. If rendering is unavailable, delivery
-falls back to the text summary and clears stale images. Alerts keep their text summaries.
+The image covers the last 15 hours. If any check in a group fails, that group turns red.
+New failures send an alert; recovery sends an all-clear. Each notification replaces the
+previous one, so the channel keeps just the status message and the latest notification.
+Latency alone does not trigger alerts by default.
 
-A new failure posts one alert, including on the first run if already
-unhealthy. The same continuing failure does not post reminders. Additional failing checks
-produce another alert; a recovery message is sent only after all previously failing checks
-explicitly pass. Unknown/skipped results never clear an incident. Latency failures remain
-visible in the status message but **do not trigger alerts or recovery messages by default**.
-The 30-minute health-check schedule determines detection time.
+To set it up:
 
-**Only the latest incident/recovery notification is retained.** Before posting a new one,
-the notifier deletes its previous notification, keeping the persistent status message intact.
-If cleanup fails, it retries next run without posting more notifications. A manually deleted
-notification is treated as already cleaned up. Older messages created before notification IDs
-were tracked need one-time manual deletion.
+1. In your Discord channel, open **Settings > Integrations > Webhooks** and create a webhook.
+2. Save its URL as `DISCORD_WEBHOOK_URL` in the **FLAME Health Check** GitHub environment secrets.
+3. Run the health-check workflow once. You can pin the status message in Discord.
 
-Discord teams can be represented by server roles. Enable Discord **Developer Mode** under
-Settings > Advanced, then use **Copy User ID** or **Copy Role ID** for the intended recipients.
-Only configured users/roles are mentioned, only on new failures; recovery/status updates
-do not ping anyone. Discord notification settings and role permissions determine delivery.
+To notify people on new failures, add either of these GitHub environment variables:
 
-### Discord layout and alert configuration
+- `DISCORD_ALERT_USER_IDS`: comma-separated user IDs.
+- `DISCORD_ALERT_ROLE_IDS`: comma-separated role IDs for teams.
 
-Edit [`discord_config.json`](discord_config.json) to customize the message. The default
-image contains exactly three cards: **Login + Upload + Distribute**, **Execute + Results**, and
-**E2E Latency**. Nodes and runner checks do not add rows; their failures can still
-trigger alerts. Missing results remain visible as no data. The underlying health-check steps and dashboard
-logs stay separate. A combined card succeeds only when every member succeeds, fails if any
-member fails, and otherwise shows no data. Its duration is the sum of its members when all
-durations are available. Historical entries are combined per run before building the bars.
+Enable Discord's **Developer Mode** under **Settings > Advanced** to copy user and role IDs.
+Recovery messages and routine updates do not ping anyone. Optionally set
+`DISCORD_STATUS_PAGE_URL` to include your dashboard link.
 
-- `cards`: ordered groups with `key`, `title`, `checks`, and optional `description`.
-  Rearrange or combine checks here, for example `"checks": ["execute", "results"]`.
-- `show_nodes`: include node history cards (`false` by default).
-- `show_runner`: add a runner failure card (`false` by default).
-- `image_scale`: rendering resolution multiplier, from `1` to `4` (default `2`, giving a
-  2000-pixel-wide image). Text and bars are drawn at this resolution, without upscaling.
-- `alert_exclude`: raw check keys excluded from incident and recovery decisions.
-  The default is `["latency"]`. Set it to `[]` to enable latency alerts, or add other keys
-  such as `"upload"` or `"node_default-2"` to silence them. Excluded checks remain visible.
-
-The workflow reads this file automatically. Locally, pass `--config path/to/config.json`
-to `discord_notify.py` to use another configuration. Presentation grouping does not combine
-alert identities: alerts still name the original failed check, such as `distribute`.
-
-`discord_notify.py` reads the current `health-check.json` snapshot generated by `reporting.py`.
-The workflow runs delivery even if the check fails; a missing snapshot is reported as a
-health-check runner failure. Discord delivery failures do not stop health log publication.
-
-The persistent message ID, latest notification ID, and confirmed statuses live in
-`discord/state.json` on the `data` branch and
-are committed with the logs. The webhook URL/token are never written there. Deleting that
-state intentionally creates a new message and resets alert history. Deleting just the Discord
-message causes the next run to recreate it while preserving alert history. Changing the
-webhook URL starts a new message/history for that webhook.
-
-After installing `requirements.txt`, run notification tests without credentials or network access:
-
-```bash
-python -m unittest discover -s tests -v
-```
+Edit [`discord_config.json`](discord_config.json) to change the rows, image resolution,
+or alert exclusions. `alert_exclude` defaults to `["latency"]`; set it to `[]` to enable
+latency alerts. The workflow handles message IDs and notification history automatically.
 
 ## Credits
 
