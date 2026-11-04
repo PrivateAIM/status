@@ -1,8 +1,9 @@
 {
   "webhook_key": "4396f71166f98f9d1d27192ba17de72142a25866aff961f9b2890a024e070e21",
   "message_id": "1567544856602087595",
-  "notification_id": "1567544859362070559",
   "confirmed_statuses": {
-    "check_runner": "failed"
-  }
+    "check_runner": "success",
+    "login": "failed"
+  },
+  "notification_id": "1567546119590904061"
 }
