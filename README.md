@@ -121,13 +121,14 @@ To set it up:
 2. Save its URL as `DISCORD_WEBHOOK_URL` in the **FLAME Health Check** GitHub environment secrets.
 3. Run the health-check workflow once. You can pin the status message in Discord.
 
-To notify people on new failures, add either of these GitHub environment variables:
+To notify people when the overall status worsens, add either of these GitHub environment variables:
 
 - `DISCORD_ALERT_USER_IDS`: comma-separated user IDs.
 - `DISCORD_ALERT_ROLE_IDS`: comma-separated role IDs for teams.
 
 Enable Discord's **Developer Mode** under **Settings > Advanced** to copy user and role IDs.
-Recovery messages and routine updates do not ping anyone. Optionally set
+Each worsening transition pings once. Repeated failures, additional failures at the same
+severity, recovery messages, and routine updates do not ping anyone. Optionally set
 `DISCORD_STATUS_PAGE_URL` to include your dashboard link.
 
 Edit [`discord_config.json`](discord_config.json) to change the rows, image resolution,

@@ -167,11 +167,15 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
                 embed = payload["embeds"][0]
                 # The cards contain current statuses, durations and history.
                 embed["fields"] = []
-                embed["footer"] = {"text": "More information: https://privateaim.github.io/status/"}
             else:
                 embed = {"color": payload["embeds"][0]["color"]}
                 payload["embeds"].append(embed)
             embed["image"] = {"url": f"attachment://{name}"}
+    # Embed descriptions support clickable Markdown links; footers do not.
+    payload["embeds"].append({
+        "description": "More information: [https://privateaim.github.io/status/](https://privateaim.github.io/status/)",
+        "color": payload["embeds"][0]["color"],
+    })
     file_options = {"files": history_images} if history_images else {}
     message_id = state.get("message_id")
     if message_id:
@@ -196,18 +200,22 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
     failures = {key for key, value in confirmed.items() if value == "failed"}
     new_failures = failures - old_failures
     recovery = bool(old_failures) and not failures
+    severity = {"No data": 0, "Operational": 0, "Degraded": 1, "Partial outage": 2, "Major outage": 3}
+    degraded = severity[overall_status(confirmed)[0]] > severity[overall_status(previous)[0]]
     if new_failures or recovery:
         alert = status_payload(report, dashboard_url, run_url, config)
         alert["embeds"][0]["title"] = f"{STATUS_TITLE}: {'Recovered' if recovery else 'Alert'}"
+        if not degraded:
+            alert["flags"] = 4096  # SUPPRESS_NOTIFICATIONS: silent updates and recovery.
         if new_failures:
             names = ", ".join(sorted(new_failures))
             alert["content"] = f"{STATUS_TITLE}: check failed: {names}."[:1900]
-            mentions = [f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]
+            mentions = ([f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]) if degraded else []
             if mentions:
                 alert["content"] = " ".join(mentions) + "\n" + alert["content"]
-            if roles:
+            if roles and degraded:
                 alert["allowed_mentions"]["roles"] = roles
-            if users:
+            if users and degraded:
                 alert["allowed_mentions"]["users"] = users
             if len(alert["content"]) > 2000:
                 raise ValueError("Too many alert mentions for Discord's message limit.")
