@@ -1,5 +1,8 @@
 import os
 import time
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 
 LOG_DIR = os.path.join("docs", "logs")
 MAX_LOG_LINES = 2000
@@ -25,6 +28,13 @@ def append_log(key: str, status: str, duration: float | None, date_str: str):
 
 
 def write_all_reports(final_statuses: dict[str, str], final_durations: dict[str, float | None]):
+    # A current-run snapshot lets notification delivery run independently, even
+    # after the health check exits with an error. It is not restored from data.
+    Path("health-check.json").write_text(json.dumps({
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "statuses": final_statuses,
+        "durations": final_durations,
+    }, indent=2) + "\n", encoding="utf-8")
     date_str = time.strftime("%Y-%m-%d %H:%M", time.gmtime())
     for key in final_statuses.keys():
         duration = final_durations[key]

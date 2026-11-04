@@ -5,3 +5,6 @@
 # the deployed version, readable without credentials at the service root:
 #   curl https://core.staging.privateaim.net/
 flame-hub-client
+
+# Render history cards for Discord without a browser or external image service.
+Pillow>=10.1

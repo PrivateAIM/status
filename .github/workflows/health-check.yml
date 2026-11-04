@@ -43,24 +43,49 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-color-emoji
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Test Discord notification behavior
+        run: python -m unittest discover -s tests -v
+
       - name: Run E2E Health Check
+        id: health-check
         continue-on-error: true
         env:
           FLAME_USERNAME: ${{ secrets.FLAME_USERNAME }}
           FLAME_PASSWORD: ${{ secrets.FLAME_PASSWORD }}
         run: python flame_health_check.py
 
+      - name: Update Discord status and send incident alerts
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_ALERT_ROLE_ID: ${{ vars.DISCORD_ALERT_ROLE_ID }}
+          DISCORD_ALERT_ROLE_IDS: ${{ vars.DISCORD_ALERT_ROLE_IDS }}
+          DISCORD_ALERT_USER_IDS: ${{ vars.DISCORD_ALERT_USER_IDS }}
+          DISCORD_STATUS_PAGE_URL: ${{ vars.DISCORD_STATUS_PAGE_URL }}
+        run: python discord_notify.py --check-outcome "${{ steps.health-check.outcome }}"
+
       - name: Commit and Push log changes
         if: always()
         run: |
-          cp docs/logs/*.log data-branch/docs/logs/
+          mkdir -p data-branch/docs/logs
+          for log in docs/logs/*.log; do
+            if [ -f "$log" ]; then
+              cp "$log" data-branch/docs/logs/
+            fi
+          done
           cd data-branch
           git config --local user.name 'github-actions[bot]'
           git config --local user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add docs/logs/
+          if [ -f discord/state.json ]; then
+            git add discord/state.json
+          fi
           if ! git diff --cached --quiet; then
             git commit -m "[Automated] Update E2E Health Check Logs"
             git pull --rebase origin data

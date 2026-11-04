@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .venv/
 docs/logs/*.log
+health-check.json
+output/

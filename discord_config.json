@@ -1,0 +1,11 @@
+{
+  "cards": [
+    {"key": "login_upload_distribute", "title": "Login + Upload + Distribute", "checks": ["login", "upload", "distribute"], "description": "Authentication, code upload & distribution"},
+    {"key": "execute_results", "title": "Execute + Results", "checks": ["execute", "results"], "description": "Code execution & results retrieval"},
+    {"key": "latency", "title": "E2E Latency", "checks": ["latency"], "description": "End-to-end latency"}
+  ],
+  "show_nodes": false,
+  "show_runner": false,
+  "image_scale": 2,
+  "alert_exclude": ["latency"]
+}
