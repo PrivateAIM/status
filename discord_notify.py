@@ -124,7 +124,7 @@ def status_payload(report, dashboard_url, run_url, config=None):
         "title": f"{STATUS_TITLE}: {title}", "color": color,
         "description": " · ".join(links) or "Automated end-to-end health check",
         "timestamp": report["checked_at"], "fields": fields,
-        "footer": {"text": "Last health check · scheduled every 30 minutes"},
+        "footer": {"text": "Last health check"},
     }
     return {"embeds": [embed], "allowed_mentions": {"parse": []}}
 
@@ -171,9 +171,10 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
                 embed = {"color": payload["embeds"][0]["color"]}
                 payload["embeds"].append(embed)
             embed["image"] = {"url": f"attachment://{name}"}
-    # Embed descriptions support clickable Markdown links; footers do not.
+    # Use Discord's native linked title instead of relying on Markdown parsing.
     payload["embeds"].append({
-        "description": "More information: [https://privateaim.github.io/status/](https://privateaim.github.io/status/)",
+        "title": "More information: https://privateaim.github.io/status/",
+        "url": "https://privateaim.github.io/status/",
         "color": payload["embeds"][0]["color"],
     })
     file_options = {"files": history_images} if history_images else {}
