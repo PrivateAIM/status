@@ -369,10 +369,11 @@ export function updateWindowLabel() {
 
   const totalMs = CONFIG.maxBlocks * getSlotMs();
   const totalHours = totalMs / 3600000;
+  const tileLabel = "One tile = " + CONFIG.resolutions[state.currentResolution].label + " | ";
   if (totalHours >= 24) {
-    el.innerText = "Window: " + (totalHours / 24).toFixed(totalHours % 24 === 0 ? 0 : 1) + " days";
+    el.innerText = tileLabel + "Window: " + (totalHours / 24).toFixed(totalHours % 24 === 0 ? 0 : 1) + " days";
   } else {
-    el.innerText = "Window: " + totalHours + " hours";
+    el.innerText = tileLabel + "Window: " + totalHours + " hours";
   }
 }
 
