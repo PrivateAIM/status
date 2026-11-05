@@ -74,15 +74,22 @@ export function worstResult(results) {
   return null;
 }
 
-export function normalizeData(statusLines) {
+export function normalizeData(statusLines, referenceTime) {
   const parsedRows = parseRows(statusLines.split("\n"));
   const now = Date.now();
+  const recorded = parsedRows.filter(entry => entry.timestamp <= now);
+  const latest = recorded.reduce((last, entry) => !last || entry.timestamp >= last.timestamp ? entry : last, null);
   const slotMs = getSlotMs();
+  // Use fixed UTC intervals ending at the latest check, not a moving window
+  // ending at page refresh time. Discord uses the same interval boundaries.
+  const anchor = Math.floor((referenceTime ?? latest?.timestamp ?? now) / slotMs);
   const slots = {};
-  const visible = parsedRows.filter(entry => now >= entry.timestamp &&
-    now - entry.timestamp < CONFIG.maxBlocks * slotMs);
+  const visible = recorded.filter(entry => {
+    const slot = anchor - Math.floor(entry.timestamp / slotMs);
+    return slot >= 0 && slot < CONFIG.maxBlocks;
+  });
   for (const entry of visible) {
-    const slot = Math.floor((now - entry.timestamp) / slotMs);
+    const slot = anchor - Math.floor(entry.timestamp / slotMs);
     (slots[slot] ??= []).push(entry);
   }
   const durations = entries => entries
@@ -94,6 +101,8 @@ export function normalizeData(statusLines) {
       uptime: worstResult(entries.map(entry => entry.result)),
       duration: getAverage(timing),
       maxDuration: timing.length ? Math.max(...timing) : null,
+      firstTimestamp: entries.length ? Math.min(...entries.map(entry => entry.timestamp)) : null,
+      lastTimestamp: entries.length ? Math.max(...entries.map(entry => entry.timestamp)) : null,
     };
   };
   const normalized = {};
@@ -113,8 +122,6 @@ export function normalizeData(statusLines) {
   normalized.upTime = `${percent(known)} (${percent(visible.length)})`;
   normalized.coveredLabel = formatCoveredLabel(Object.keys(slots).length);
   normalized.avgDuration = getAverage(durations(parsedRows));
-  const latest = parsedRows.filter(entry => entry.timestamp <= now)
-    .reduce((last, entry) => !last || entry.timestamp >= last.timestamp ? entry : last, null);
   normalized.latestDuration = latest?.duration ?? null;
   normalized.latestTimestamp = latest ? new Date(latest.timestamp) : null;
   return normalized;

@@ -112,7 +112,8 @@ Each health check updates one **Staging E2E Status** message with a single histo
 - E2E Latency
 
 The image covers 15 hours: failed groups are red, partial groups orange. History blocks retain
-the worst status. Image badges show the latest run; dashboard badges cover 45 minutes.
+the worst status in fixed time intervals aligned to the latest check. Image badges show
+the latest run; dashboard badges cover 45 minutes.
 
 The channel keeps one status message and one notification, both refreshed each check.
 Notifications include node statuses and update silently between incident transitions.

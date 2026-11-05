@@ -1,6 +1,6 @@
 import { CONFIG, getStatusText } from "./constants.js";
 import { state } from "./state.js";
-import { normalizeData, getSlotMs } from "./data.js";
+import { normalizeData, parseRows, getSlotMs } from "./data.js";
 import { showTooltipForSquare, hideTooltip } from "./tooltip.js";
 
 // ─── DOM Helpers ────────────────────────────────────────────────────────
@@ -129,6 +129,8 @@ export function applySquareData(square, slotData) {
   if (square.dataset.status !== color) square.dataset.status = color;
   const duration = durationVal !== null && durationVal !== undefined ? String(durationVal) : "";
   if (square.dataset.duration !== duration) square.dataset.duration = duration;
+  square.dataset.firstTimestamp = slotData?.firstTimestamp != null ? String(slotData.firstTimestamp) : "";
+  square.dataset.lastTimestamp = slotData?.lastTimestamp != null ? String(slotData.lastTimestamp) : "";
 }
 
 export function constructStatusSquare(key, relSlot, slotData) {
@@ -255,9 +257,9 @@ export async function fetchLog(key, refresh = false) {
   return statusLines ?? "";
 }
 
-export async function genReportLog(container, key, url, desc) {
+export async function genReportLog(container, key, url, desc, referenceTime) {
   const statusLines = await fetchLog(key);
-  const normalized = normalizeData(statusLines);
+  const normalized = normalizeData(statusLines, referenceTime);
 
   let reportEl = container.querySelector('[data-report-key="' + key + '"]');
   if (reportEl) {
@@ -288,6 +290,11 @@ export async function genAllReports(refresh = false) {
 
   // Fetch all logs in parallel to optimize page speed
   await Promise.all(configList.map(item => fetchLog(item.key, refresh)));
+  const now = Date.now();
+  const recordedTimes = configList.flatMap(({ key }) =>
+    parseRows((state.rawLogCache[key] ?? "").split("\n")))
+    .map(entry => entry.timestamp).filter(timestamp => timestamp <= now);
+  const referenceTime = recordedTimes.length ? Math.max(...recordedTimes) : now;
 
   // Render them sequentially in order (they will instantly retrieve from rawLogCache)
   for (const { key, url, desc } of configList) {
@@ -295,7 +302,7 @@ export async function genAllReports(refresh = false) {
     // node container is missing they fall back to the main reports container.
     const nodeCard = isNodeKey(key);
     const targetEl = nodeCard && nodeReportsEl ? nodeReportsEl : reportsEl;
-    const normalized = await genReportLog(targetEl, key, url, desc);
+    const normalized = await genReportLog(targetEl, key, url, desc, referenceTime);
     const ts = normalized.latestTimestamp;
     if (ts && (!globalLatestTimestamp || ts > globalLatestTimestamp)) {
       globalLatestTimestamp = ts;

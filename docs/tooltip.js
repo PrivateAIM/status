@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { formatSlotDate, getSlotMs } from "./data.js";
+import { formatSlotDate } from "./data.js";
 import { getStatusText, getStatusDescriptiveText } from "./constants.js";
 
 function hasTooltipSelection() {
@@ -26,14 +26,21 @@ export function initTooltip() {
   });
 }
 
-export function showTooltip(element, key, date, color, duration) {
+export function formatCheckTimes(firstTimestamp, lastTimestamp) {
+  if (!firstTimestamp || !lastTimestamp) return "No recorded checks";
+  const first = formatSlotDate(new Date(Number(firstTimestamp)));
+  const last = formatSlotDate(new Date(Number(lastTimestamp)));
+  return firstTimestamp === lastTimestamp ? `Check: ${last}` : `Checks: ${first} – ${last}`;
+}
+
+export function showTooltip(element, key, color, duration) {
   clearTimeout(state.tooltipTimeout);
   if (hasTooltipSelection()) return;
   const toolTipDiv = document.getElementById("tooltip");
   if (!toolTipDiv) return;
 
   const dateTimeEl = document.getElementById("tooltipDateTime");
-  if (dateTimeEl) dateTimeEl.innerText = formatSlotDate(date);
+  if (dateTimeEl) dateTimeEl.innerText = formatCheckTimes(element.dataset.firstTimestamp, element.dataset.lastTimestamp);
 
   let descText = getStatusDescriptiveText(color);
   if (duration !== null && duration !== undefined && (color === "success" || color === "partial")) {
@@ -85,10 +92,8 @@ export function hideTooltip() {
 }
 
 export function showTooltipForSquare(square) {
-  const relSlot = parseInt(square.dataset.slot, 10);
-  const date = new Date(Date.now() - relSlot * getSlotMs());
   const key = square.dataset.key;
   const color = square.dataset.status;
   const duration = square.dataset.duration ? parseFloat(square.dataset.duration) : null;
-  showTooltip(square, key, date, color, duration);
+  showTooltip(square, key, color, duration);
 }

@@ -48,10 +48,11 @@ def read_entries(log_dir, key):
 
 def history_data(entries, now, key):
     slots = [[] for _ in range(BLOCKS)]
+    anchor = int(now.timestamp() // SLOT_SECONDS)
     for timestamp, status, duration in entries:
-        age = (now - timestamp).total_seconds()
-        if 0 <= age < BLOCKS * SLOT_SECONDS:
-            slots[BLOCKS - 1 - int(age // SLOT_SECONDS)].append((status, duration))
+        slot = anchor - int(timestamp.timestamp() // SLOT_SECONDS)
+        if timestamp <= now and 0 <= slot < BLOCKS:
+            slots[BLOCKS - 1 - slot].append((status, duration))
     colors = []
     known = success = total = 0
     for slot in slots:

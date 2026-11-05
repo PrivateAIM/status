@@ -49,7 +49,7 @@ class PartialStatusTests(unittest.TestCase):
         self.assertEqual(statuses["upload"], "partial")  # Missing expected node.
 
     def test_history_preserves_worst_run(self):
-        now = datetime.now(timezone.utc)
+        now = datetime(2026, 11, 5, 10, 27, tzinfo=timezone.utc)
         for statuses, expected in [(["partial", "success"], "partial"),
                                    (["failed", "success"], "failure"),
                                    (["unknown", "success"], "partial"),
@@ -60,6 +60,15 @@ class PartialStatusTests(unittest.TestCase):
         self.assertEqual(history_data(entries, now, "latency")["colors"][-1], "failure")
         history = history_data([(now, "partial", 1)], now, "results")
         self.assertEqual(history["uptime"], 0)
+
+    def test_history_uses_same_fixed_intervals_as_dashboard(self):
+        now = datetime(2026, 11, 5, 13, 55, tzinfo=timezone.utc)
+        entries = [(now.replace(minute=28), "partial", 0.68),
+                   (now.replace(minute=42), "success", 1.15),
+                   (now, "success", 0.77)]
+        colors = history_data(entries, now, "results")["colors"]
+        self.assertEqual(colors[-1], "success")
+        self.assertEqual(colors[-2], "partial")
 
     def test_partial_image_badge_and_history_are_amber(self):
         from PIL import Image
