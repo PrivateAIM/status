@@ -7,9 +7,9 @@
     "upload": "success",
     "distribute": "success",
     "execute": "failed",
-    "node_aggregator-1": "failed",
+    "node_aggregator-1": "success",
     "node_default-1": "failed",
-    "node_default-2": "failed",
+    "node_default-2": "success",
     "results": "success"
   },
   "notification_id": "1567840359298637835"
