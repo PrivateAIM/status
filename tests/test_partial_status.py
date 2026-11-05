@@ -86,7 +86,7 @@ class PartialStatusTests(unittest.TestCase):
             notify(report("failed"), "test-webhook", state, config=config)
             request.reset_mock()
             notify(report("partial"), "test-webhook", state, config=config)
-            self.assertEqual([call.args[1] for call in request.call_args_list], ["PATCH"])
+            self.assertEqual([call.args[1] for call in request.call_args_list], ["PATCH", "PATCH"])
             request.reset_mock()
             notify(report("success"), "test-webhook", state, config=config)
             self.assertEqual([call.args[1] for call in request.call_args_list], ["PATCH", "DELETE", "POST"])

@@ -94,6 +94,8 @@ def overall_status(statuses):
         return ("Major outage", 0xEF4444) if down / len(known) >= 0.5 else ("Partial outage", 0xF59E0B)
     if any(value in {"failed", "partial"} for value in statuses.values()):
         return "Degraded", 0xF59E0B
+    if "unknown" in statuses.values():
+        return ("Degraded", 0xF59E0B) if known else ("No data", 0x64748B)
     if known or statuses.get("login") == "success":
         return "Operational", 0x10B981
     return "No data", 0x64748B
@@ -205,29 +207,58 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
     recovery = bool(old_failures) and not failures
     severity = {"No data": 0, "Operational": 0, "Degraded": 1, "Partial outage": 2, "Major outage": 3}
     degraded = severity[overall_status(confirmed)[0]] > severity[overall_status(previous)[0]]
-    if new_failures or recovery:
-        alert = status_payload(report, dashboard_url, run_url, config)
-        alert["embeds"][0]["title"] = f"{STATUS_TITLE}: {'Recovered' if recovery else 'Alert'}"
+    old_notification = state.get("notification_id")
+    if old_notification or new_failures or recovery:
+        # Refresh the text alongside the image on every run. Unknown checks
+        # cannot clear a confirmed incident, even when other checks pass.
+        notification_report = dict(report, statuses=dict(report["statuses"]))
+        notification_report["durations"] = dict(report.get("durations", {}))
+        for key in failures:
+            if report["statuses"].get(key, "unknown") == "unknown":
+                notification_report["statuses"][key] = confirmed[key]
+                notification_report["durations"][key] = None
+        # Image layout preferences must not hide the affected nodes in alerts.
+        alert = status_payload(notification_report, dashboard_url, run_url,
+                               dict(config, show_nodes=True, show_runner=True))
+        alert["embeds"][0]["footer"]["text"] = "Latest health check; history may include earlier outages"
         if not degraded:
             alert["flags"] = 4096  # SUPPRESS_NOTIFICATIONS: silent updates and recovery.
-        if new_failures:
-            names = ", ".join(sorted(new_failures))
-            alert["content"] = f"{STATUS_TITLE}: check degraded or failed: {names}."[:1900]
-            mentions = ([f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]) if degraded else []
+        if failures:
+            names = ", ".join(sorted(failures))
+            alert["content"] = f"{STATUS_TITLE}: active degraded or failed checks: {names}."[:1900]
+            unverified = sorted(key for key in failures if report["statuses"].get(key, "unknown") == "unknown")
+            if unverified:
+                alert["content"] += "\nAwaiting a fresh result for: " + ", ".join(unverified) + "."
+            mentions = ([f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]) if degraded and new_failures else []
             if mentions:
                 alert["content"] = " ".join(mentions) + "\n" + alert["content"]
-            if roles and degraded:
+            if roles and mentions:
                 alert["allowed_mentions"]["roles"] = roles
-            if users and degraded:
+            if users and mentions:
                 alert["allowed_mentions"]["users"] = users
             if len(alert["content"]) > 2000:
                 raise ValueError("Too many alert mentions for Discord's message limit.")
-        else:
+        elif overall_status(notification_report["statuses"])[0] == "Operational":
             alert["content"] = "All previously alerting Staging E2E checks have recovered."
-        old_notification = state.get("notification_id")
+        else:
+            alert["content"] = "No active alerting incidents. See the latest check results below."
         if old_notification:
             if old_notification == state["message_id"]:
                 raise ValueError("Notification ID must differ from the persistent status message ID.")
+            if not (new_failures or recovery):
+                # Editing the existing message keeps it current without a new
+                # notification or ping on every scheduled check.
+                alert["allowed_mentions"] = {"parse": []}
+                alert["flags"] = 4096
+                try:
+                    webhook_request(webhook_url, "PATCH", alert, old_notification)
+                except DiscordError as exc:
+                    if exc.status != 404 or exc.code != 10008:
+                        raise
+                    state["notification_id"] = webhook_request(webhook_url, "POST", alert)["id"]
+                state["confirmed_statuses"] = confirmed
+                save_state(path, state)
+                return
             try:
                 webhook_request(webhook_url, "DELETE", {}, old_notification)
             except DiscordError as exc:

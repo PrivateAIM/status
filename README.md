@@ -120,6 +120,10 @@ the worst recorded status in each history block, including latency spikes, after
 Current image badges show the latest run; dashboard badges summarize the last 45 minutes.
 New failures send an alert; recovery sends an all-clear. Each notification replaces the
 previous one, so the channel keeps just the status message and the latest notification.
+The latest notification is refreshed silently on every check, includes individual node
+statuses even when nodes are hidden in the image, and retains unresolved incidents when
+a fresh check returns no data. Its timestamp describes the latest check; history blocks
+can still show earlier outages after a recovery.
 Latency alone does not trigger alerts by default.
 
 To set it up:
