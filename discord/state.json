@@ -5,7 +5,7 @@
     "check_runner": "success",
     "login": "success",
     "upload": "success",
-    "distribute": "failed",
+    "distribute": "success",
     "execute": "failed",
     "node_aggregator-1": "failed",
     "node_default-1": "failed",
