@@ -9,7 +9,7 @@ from pathlib import Path
 from discord_layout import STATUS_TITLE, combine_entries, display_cards, load_config
 
 BLOCKS = 30
-SLOT_SECONDS = 30 * 60
+SLOT_SECONDS = 15 * 60
 COLORS = {"success": "#10b981", "failure": "#ef4444", "partial": "#f59e0b", "nodata": "#cbd5e1"}
 
 
@@ -137,8 +137,8 @@ def render_history(report, log_dir="docs/logs", config=None, *, preview=False):
     emoji = fire_emoji(30 * scale)
     image.paste(emoji, (28 * scale, 22 * scale), emoji)
     text((68, 20), STATUS_TITLE, 26, True, fill="#0f172a")
-    subtitle = "SAMPLE DATA | Last 15 hours | 30-minute blocks" if preview else (
-        "Last 15 hours | 30-minute blocks | oldest to newest"
+    subtitle = "SAMPLE DATA | Last 7.5 hours | 15-minute blocks" if preview else (
+        "Last 7.5 hours | 15-minute blocks | oldest to newest"
     )
     text((28, 58), subtitle, 19, fill="#64748b")
     for index, card in enumerate(cards):

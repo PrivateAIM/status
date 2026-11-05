@@ -44,7 +44,7 @@ export const CONFIG = {
   resolutions: {
     "1d":    { ms: 24 * 3600 * 1000, label: "1 day" },
     "6h":    { ms:  6 * 3600 * 1000, label: "6 hours" },
-    "30min": { ms:      30 * 60000,  label: "30 min" },
+    "15min": { ms:      15 * 60000,  label: "15 min" },
   },
   
   // Theme Assets

@@ -36,7 +36,7 @@ assert.equal(color(failedLatency, "latency"), "failure");
 const future = normalizeData("2026-11-05 11:27, failed,\n" + row(27, "success", 1));
 assert.equal(color(future), "success");
 
-// A refresh after the half-hour must not move an old partial run into or out
+// A refresh after the quarter-hour must not move an old partial run into or out
 // of the latest check's tile. Discord uses these same fixed UTC intervals.
 const recovered = [
   "2026-11-05 13:28, partial, 0.68",
@@ -46,8 +46,9 @@ const recovered = [
 Date.now = () => Date.parse("2026-11-05T14:01:40Z");
 const before = normalizeData(recovered);
 assert.equal(before[0].uptime, 1);
-assert.equal(before[1].uptime, 0.5);
-assert.equal(before[0].firstTimestamp, Date.parse("2026-11-05T13:42:00Z"));
+assert.equal(before[1].uptime, 1);
+assert.equal(before[2].uptime, 0.5);
+assert.equal(before[0].firstTimestamp, Date.parse("2026-11-05T13:55:00Z"));
 assert.equal(before[0].lastTimestamp, Date.parse("2026-11-05T13:55:00Z"));
 Date.now = () => Date.parse("2026-11-05T14:16:40Z");
 assert.deepEqual(normalizeData(recovered)[0], before[0]);
@@ -56,7 +57,8 @@ const square = { dataset: { key: "results" }, className: "" };
 applySquareData(square, before[0]);
 assert.equal(square.dataset.lastTimestamp, String(Date.parse("2026-11-05T13:55:00Z")));
 assert.equal(square.dataset.status, "success");
-assert.ok(formatCheckTimes(square.dataset.firstTimestamp, square.dataset.lastTimestamp).startsWith("Checks: "));
+assert.ok(formatCheckTimes(square.dataset.firstTimestamp, square.dataset.lastTimestamp).startsWith("Check: "));
+assert.ok(formatCheckTimes(String(before[1].firstTimestamp), square.dataset.lastTimestamp).startsWith("Checks: "));
 const checkTime = square.dataset.lastTimestamp;
 assert.ok(formatCheckTimes(checkTime, checkTime).startsWith("Check: "));
 const tooltipBefore = formatCheckTimes(checkTime, checkTime);

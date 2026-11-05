@@ -68,7 +68,8 @@ class PartialStatusTests(unittest.TestCase):
                    (now, "success", 0.77)]
         colors = history_data(entries, now, "results")["colors"]
         self.assertEqual(colors[-1], "success")
-        self.assertEqual(colors[-2], "partial")
+        self.assertEqual(colors[-2], "success")
+        self.assertEqual(colors[-3], "partial")
 
     def test_partial_image_badge_and_history_are_amber(self):
         from PIL import Image
