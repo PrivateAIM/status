@@ -618,9 +618,10 @@ body.dark-theme .statusSquare:hover {
   border: 1px solid var(--tooltip-border);
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15);
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: 18px 20px;
   z-index: 100;
-  width: 260px;
+  box-sizing: border-box;
+  width: 380px;
   max-width: calc(100vw - 16px);
   text-align: left;
   pointer-events: none;
@@ -658,22 +659,23 @@ body.dark-theme .tooltip {
 
 .tooltip-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .tooltipDateTime {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  line-height: 1.5;
 }
 
 #tooltipStatus {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 #tooltipStatus.success { color: var(--color-success); }
@@ -684,6 +686,7 @@ body.dark-theme .tooltip {
 .tooltipDescription {
   font-size: 13px;
   line-height: 1.5;
+  white-space: pre-line;
   color: var(--text-main);
   border-top: 1px solid var(--border-color);
   padding-top: 6px;

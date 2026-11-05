@@ -1,4 +1,3 @@
-import { state } from "./state.js";
 import { formatSlotDate } from "./data.js";
 import { getStatusText, getStatusDescriptiveText } from "./constants.js";
 
@@ -12,16 +11,13 @@ function hasTooltipSelection() {
 export function initTooltip() {
   const tooltip = document.getElementById("tooltip");
   if (!tooltip) return;
-  tooltip.addEventListener("mouseenter", () => clearTimeout(state.tooltipTimeout));
-  tooltip.addEventListener("mouseleave", hideTooltip);
-  // Keep selected text available for the browser's Copy command/context menu.
-  document.addEventListener("selectionchange", () => {
-    if (!hasTooltipSelection() && !tooltip.matches(":hover")) hideTooltip();
+  // Stay open while the user moves the pointer or selects/copies text.
+  document.addEventListener("pointerdown", (event) => {
+    if (!tooltip.contains(event.target) && !event.target.closest?.(".statusSquare")) hideTooltip();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      clearTimeout(state.tooltipTimeout);
-      tooltip.classList.remove("is-visible");
+      hideTooltip();
     }
   });
 }
@@ -34,7 +30,6 @@ export function formatCheckTimes(firstTimestamp, lastTimestamp) {
 }
 
 export function showTooltip(element, key, color, duration) {
-  clearTimeout(state.tooltipTimeout);
   if (hasTooltipSelection()) return;
   const toolTipDiv = document.getElementById("tooltip");
   if (!toolTipDiv) return;
@@ -44,7 +39,7 @@ export function showTooltip(element, key, color, duration) {
 
   let descText = getStatusDescriptiveText(color);
   if (duration !== null && duration !== undefined && (color === "success" || color === "partial")) {
-    descText += ` Average run duration: ${duration.toFixed(1)}s.`;
+    descText += `\nAverage run duration: ${duration.toFixed(1)}s.`;
   }
   const descEl = document.getElementById("tooltipDescription");
   if (descEl) descEl.innerText = descText;
@@ -82,13 +77,7 @@ export function showTooltip(element, key, color, duration) {
 }
 
 export function hideTooltip() {
-  clearTimeout(state.tooltipTimeout);
-  state.tooltipTimeout = setTimeout(() => {
-    const toolTipDiv = document.getElementById("tooltip");
-    if (toolTipDiv && !toolTipDiv.matches(":hover") && !hasTooltipSelection()) {
-      toolTipDiv.classList.remove("is-visible");
-    }
-  }, 1000);
+  document.getElementById("tooltip")?.classList.remove("is-visible");
 }
 
 export function showTooltipForSquare(square) {

@@ -1,7 +1,7 @@
 import { CONFIG, getStatusText } from "./constants.js";
 import { state } from "./state.js";
 import { normalizeData, parseRows, getSlotMs } from "./data.js";
-import { showTooltipForSquare, hideTooltip } from "./tooltip.js";
+import { showTooltipForSquare } from "./tooltip.js";
 
 // ─── DOM Helpers ────────────────────────────────────────────────────────
 export function create(tag, className) {
@@ -143,7 +143,6 @@ export function constructStatusSquare(key, relSlot, slotData) {
 
   square.addEventListener("mouseover", () => showTooltipForSquare(square));
   square.addEventListener("mousedown", () => showTooltipForSquare(square));
-  square.addEventListener("mouseout", hideTooltip);
   return square;
 }
 
