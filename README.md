@@ -28,7 +28,10 @@ The results are merged into six step cards and a per-node section:
 | `latency` | Per pair: E2E duration stays below the sum of the per-step budgets. | 600 s |
 
 The five pipeline step cards (`upload`…`latency`) are **aggregated across the parallel pair runs**
-(status merged, duration averaged). The per-node cards at the bottom show each node's own up/down
+(status merged, duration averaged). A step is green only when every expected pair passed,
+orange when some passed and others failed or were skipped, red when checks ran but none passed,
+and gray when no pair reached the step. Missing expected nodes also prevent green.
+The per-node cards at the bottom show each node's own up/down
 and latency; `aggregator-1` counts as up if any of its pairs succeeds. The **overall** badge is the
 aggregation of the node verdicts: all up → operational, some down → partial, all down or `login`
 failing → major outage.
@@ -37,9 +40,10 @@ All work until the next step starts belongs to the current step. In particular, 
 during shared project preparation or master image lookup fail `login`; `upload` and later steps
 remain `unknown`. The login duration includes this shared setup.
 
-If a step fails within a pair run, that run's subsequent steps are recorded as `unknown` (shown as
-"no data" on the page, excluded from uptime statistics); an offline node is recorded down without
-spending a run on it.
+If a step fails within a pair run, that run's subsequent steps are recorded as `unknown`.
+These skipped steps count as incomplete coverage when another pair succeeds. An entirely
+unattempted step is shown as "no data" and excluded from uptime statistics. Uptime measures
+fully successful runs; partial runs count as known but not fully successful.
 
 Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders the last 30 days per check, including run durations.
 
@@ -110,7 +114,10 @@ Each health check updates one **Staging E2E Status** message with a single histo
 - Execute + Results
 - E2E Latency
 
-The image covers the last 15 hours. If any check in a group fails, that group turns red.
+The image covers the last 15 hours. If any check in a group fails, that group turns red;
+partial checks or mixed success and no data turn it orange. The dashboard and image retain
+the worst recorded status in each history block, including latency spikes, after recovery.
+Current image badges show the latest run; dashboard badges summarize the last 45 minutes.
 New failures send an alert; recovery sends an all-clear. Each notification replaces the
 previous one, so the channel keeps just the status message and the latest notification.
 Latency alone does not trigger alerts by default.

@@ -67,7 +67,7 @@ export function getColor(uptimeVal) {
     ? "nodata"
     : uptimeVal === 1
     ? "success"
-    : uptimeVal < CONFIG.uptime.partialThreshold
+    : uptimeVal === 0
     ? "failure"
     : "partial";
 }
@@ -77,6 +77,15 @@ export function getLatencyColor(durationVal) {
   if (durationVal < CONFIG.latency.successThreshold) return "success";
   if (durationVal < CONFIG.latency.partialThreshold) return "partial";
   return "failure";
+}
+
+export function getReportColor(key, uptime, maxDuration) {
+  const availability = getColor(uptime);
+  if (key !== "latency" || availability === "failure" || availability === "nodata") return availability;
+  const latency = getLatencyColor(maxDuration);
+  if (latency === "failure") return "failure";
+  if (availability === "partial" || latency === "partial") return "partial";
+  return latency;
 }
 
 // ─── Key helpers ─────────────────────────────────────────────────────────
@@ -114,7 +123,7 @@ export function applySquareData(square, slotData) {
   const key = square.dataset.key;
   const uptimeVal = slotData ? slotData.uptime : null;
   const durationVal = slotData ? slotData.duration : null;
-  const color = key === "latency" ? getLatencyColor(durationVal) : getColor(uptimeVal);
+  const color = getReportColor(key, uptimeVal, slotData?.maxDuration ?? null);
 
   setClass(square, "statusSquare " + color);
   if (square.dataset.status !== color) square.dataset.status = color;
@@ -144,7 +153,7 @@ export function constructStatusStream(key, url, desc, uptimeData) {
   }
 
   const lastUptime = uptimeData.overallUptime;
-  const color = key === "latency" ? getLatencyColor(uptimeData.overallDuration) : getColor(lastUptime);
+  const color = getReportColor(key, lastUptime, uptimeData.overallMaxDuration);
 
   const container = templatize("statusContainerTemplate", {
     title: getDisplayTitle(key),
@@ -162,7 +171,7 @@ export function constructStatusStream(key, url, desc, uptimeData) {
 
 export function updateStatusContainer(reportEl, uptimeData, desc) {
   const key = reportEl.dataset.reportKey;
-  const color = key === "latency" ? getLatencyColor(uptimeData.overallDuration) : getColor(uptimeData.overallUptime);
+  const color = getReportColor(key, uptimeData.overallUptime, uptimeData.overallMaxDuration);
 
   const badge = reportEl.querySelector(".status-indicator-badge");
   if (badge) {
@@ -292,9 +301,7 @@ export async function genAllReports(refresh = false) {
       globalLatestTimestamp = ts;
     }
 
-    const compColor = key === "latency"
-      ? getLatencyColor(normalized.overallDuration)
-      : getColor(normalized.overallUptime);
+    const compColor = getReportColor(key, normalized.overallUptime, normalized.overallMaxDuration);
 
     if (nodeCard) {
       nodeReportCount++;
@@ -310,20 +317,18 @@ export async function genAllReports(refresh = false) {
     nodeSection.style.display = nodeReportCount > 0 ? "" : "none";
   }
 
-  // Overall status aggregates the per-node verdicts, gated by the shared login
-  // step: login down → major; all known nodes up → operational; a minority of
-  // nodes down (< majorOutageDownRatio) → partial; half or more down → major.
-  // nodata / unknown nodes are excluded from the ratio entirely.
-  const nodesUp = nodeColors.filter((c) => c === "success").length;
+  // Only complete node coverage can make the overall badge green. Unknown
+  // nodes do not count in the down ratio; partial nodes remain known.
   const nodesDown = nodeColors.filter((c) => c === "failure").length;
-  const knownNodes = nodesUp + nodesDown;
+  const knownNodes = nodeColors.filter((c) => c !== "nodata").length;
   let overallColor;
   if (loginColor === "failure") {
     overallColor = "failure";
   } else if (knownNodes === 0) {
-    overallColor = loginColor;
+    overallColor = nodeColors.length ? "nodata" : loginColor;
   } else if (nodesDown === 0) {
-    overallColor = "success";
+    overallColor = nodeColors.every(color => color === "success") && loginColor === "success"
+      ? "success" : "partial";
   } else if (nodesDown / knownNodes < CONFIG.overall.majorOutageDownRatio) {
     overallColor = "partial";
   } else {

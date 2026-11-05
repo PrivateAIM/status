@@ -42,6 +42,7 @@ export function parseRows(rows) {
 
     let result = -1;
     if (resultStr == "success") result = 1;
+    else if (resultStr == "partial") result = 0.5;
     else if (resultStr == "failed" || resultStr == "failure") result = 0;
 
     entries.push({
@@ -64,86 +65,57 @@ export function getAverage(arr) {
   return valid.reduce((a, b) => a + b, 0) / valid.length;
 }
 
+// Partial is a category, not a measured 50% node uptime. Count only fully
+// successful runs in uptime statistics; use the worst category for colors.
+export function worstResult(results) {
+  if (results.includes(0)) return 0;
+  if (results.includes(0.5)) return 0.5;
+  if (results.includes(1)) return results.includes(-1) ? 0.5 : 1;
+  return null;
+}
+
 export function normalizeData(statusLines) {
-  const rows = statusLines.split("\n");
-  const parsedRows = parseRows(rows);
-
-  const slotMs = getSlotMs();
+  const parsedRows = parseRows(statusLines.split("\n"));
   const now = Date.now();
-
-  let relativeSlotMap = {};
-  let sum = 0, count = 0, unknownCount = 0, slotsWithData = 0;
-
-  for (const entry of parsedRows) {
-    const age = now - entry.timestamp;
-    if (age < 0) continue;
-    const relSlot = Math.floor(age / slotMs);
-    if (relSlot >= CONFIG.maxBlocks) continue;
-
-    if (!relativeSlotMap[relSlot]) {
-      relativeSlotMap[relSlot] = { results: [], durations: [] };
-    }
-
-    relativeSlotMap[relSlot].results.push(entry.result);
-    if (entry.duration !== null && entry.result === 1) {
-      relativeSlotMap[relSlot].durations.push(entry.duration);
-    }
+  const slotMs = getSlotMs();
+  const slots = {};
+  const visible = parsedRows.filter(entry => now >= entry.timestamp &&
+    now - entry.timestamp < CONFIG.maxBlocks * slotMs);
+  for (const entry of visible) {
+    const slot = Math.floor((now - entry.timestamp) / slotMs);
+    (slots[slot] ??= []).push(entry);
   }
-
-  // Aggregate each slot
-  for (const [slot, data] of Object.entries(relativeSlotMap)) {
-    slotsWithData++;
-    const validResults = data.results.filter(r => r !== -1);
-    const slotUnknowns = data.results.filter(r => r === -1).length;
-    
-    sum += validResults.reduce((a, b) => a + b, 0);
-    count += validResults.length;
-    unknownCount += slotUnknowns;
-
-    relativeSlotMap[slot] = {
-      uptime: validResults.length > 0 ? getAverage(validResults) : null,
-      duration: data.durations.length > 0 ? getAverage(data.durations) : null,
+  const durations = entries => entries
+    .filter(entry => entry.result > 0 && entry.duration !== null)
+    .map(entry => entry.duration);
+  const summarize = entries => {
+    const timing = durations(entries);
+    return {
+      uptime: worstResult(entries.map(entry => entry.result)),
+      duration: getAverage(timing),
+      maxDuration: timing.length ? Math.max(...timing) : null,
     };
+  };
+  const normalized = {};
+  for (const [slot, entries] of Object.entries(slots)) {
+    normalized[slot] = summarize(entries);
   }
+  const recent = parsedRows.filter(entry => now >= entry.timestamp &&
+    now - entry.timestamp <= CONFIG.statusLookbackMinutes * 60000);
+  const current = summarize(recent);
+  normalized.overallUptime = current.uptime;
+  normalized.overallDuration = current.duration;
+  normalized.overallMaxDuration = current.maxDuration;
 
-  const validRows = rows.filter(r => r.trim().length > 0);
-  const lookbackMs = CONFIG.statusLookbackMinutes * 60000;
-  let recentResults = [];
-  let recentDurations = [];
-  
-  for (const row of validRows) {
-    const parts = row.split(",");
-    const dateTimeStr = parts[0];
-    const timestamp = Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT");
-    if (isNaN(timestamp)) continue;
-    
-    if (now - timestamp <= lookbackMs && now - timestamp >= 0) {
-      const resultStr = parts[1] ? parts[1].trim() : "";
-      const duration = parts[2] ? parseFloat(parts[2].trim()) : null;
-
-      if (resultStr === "success") {
-        recentResults.push(1);
-        if (duration !== null && !isNaN(duration)) recentDurations.push(duration);
-      } else if (resultStr === "failed" || resultStr === "failure") {
-        recentResults.push(0);
-      }
-    }
-  }
-  relativeSlotMap.overallUptime = recentResults.length > 0 ? getAverage(recentResults) : null;
-  relativeSlotMap.overallDuration = recentDurations.length > 0 ? getAverage(recentDurations) : null;
-
-  const ignoredUptime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
-  const strictUptime = (count + unknownCount) ? ((sum / (count + unknownCount)) * 100).toFixed(2) + "%" : "--%";
-  relativeSlotMap.upTime = `${ignoredUptime} (${strictUptime})`;
-  relativeSlotMap.coveredLabel = formatCoveredLabel(slotsWithData);
-  
-  const allDurations = parsedRows
-    .filter(entry => entry.result === 1)
-    .map(entry => entry.duration)
-    .filter(d => d !== null && !isNaN(d));
-  relativeSlotMap.avgDuration = allDurations.length > 0 ? getAverage(allDurations) : null;
-
-  relativeSlotMap.latestDuration = parsedRows.length > 0 ? parsedRows[parsedRows.length - 1].duration : null;
-  relativeSlotMap.latestTimestamp = parsedRows.length > 0 ? new Date(parsedRows[parsedRows.length - 1].timestamp) : null;
-  return relativeSlotMap;
+  const passed = visible.filter(entry => entry.result === 1).length;
+  const known = visible.filter(entry => entry.result !== -1).length;
+  const percent = total => total ? (100 * passed / total).toFixed(2) + "%" : "--%";
+  normalized.upTime = `${percent(known)} (${percent(visible.length)})`;
+  normalized.coveredLabel = formatCoveredLabel(Object.keys(slots).length);
+  normalized.avgDuration = getAverage(durations(parsedRows));
+  const latest = parsedRows.filter(entry => entry.timestamp <= now)
+    .reduce((last, entry) => !last || entry.timestamp >= last.timestamp ? entry : last, null);
+  normalized.latestDuration = latest?.duration ?? null;
+  normalized.latestTimestamp = latest ? new Date(latest.timestamp) : null;
+  return normalized;
 }

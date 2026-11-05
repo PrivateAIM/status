@@ -18,14 +18,16 @@ def init_tracking() -> tuple[dict[str, str], dict[str, float | None]]:
 
 
 def merge_step_status(values: list[str]) -> str:
-    # A step is success only if every attempted run passed it; failed if any
-    # attempted run failed; unknown if no run reached it. The log format carries
-    # only success/failed/unknown - the "partial" colour emerges on the frontend
-    # from the uptime ratio over the lookback window.
+    # Green requires every expected pair to pass, including pairs that never
+    # reached this step. Preserve successful coverage as partial, not green.
     attempted = [v for v in values if v != "unknown"]
     if len(attempted) == 0:
         return "unknown"
-    return "success" if all(v == "success" for v in attempted) else "failed"
+    if all(v == "success" for v in values):
+        return "success"
+    if any(v in {"success", "partial"} for v in attempted):
+        return "partial"
+    return "failed"
 
 
 def average(values: list[float | None]) -> float | None:
@@ -55,8 +57,13 @@ def merge_records(records: list[dict], aggregator, statuses: dict, step_duration
     # broken node's partial (timed-out) duration is not a meaningful timing.
     # E2E latency is exempt: it is recorded only for reachable nodes already, so
     # averaging its present values keeps slow-but-up nodes in the number.
+    expected = [name for name in TARGET_NODE_NAMES if name != aggregator.name]
+    by_name = {record["compute_name"]: record for record in records}
     for step in PAIR_STEP_KEYS:
-        statuses[step] = merge_step_status([record["step_status"][step] for record in records])
+        statuses[step] = merge_step_status([
+            by_name[name]["step_status"][step] if name in by_name else "unknown"
+            for name in expected
+        ])
         if step == "latency":
             step_durations[step] = average([record["step_duration"][step] for record in records])
         else:

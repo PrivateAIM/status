@@ -48,6 +48,7 @@ def load_config(path=None):
 def combine(values):
     statuses = [status for status, _ in values]
     status = "failed" if any(value in {"failed", "failure"} for value in statuses) else (
+        "partial" if "partial" in statuses or ("success" in statuses and "unknown" in statuses) else
         "success" if statuses and all(value == "success" for value in statuses) else "unknown"
     )
     durations = [duration for _, duration in values]

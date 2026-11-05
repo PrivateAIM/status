@@ -13,6 +13,21 @@ SLOT_SECONDS = 30 * 60
 COLORS = {"success": "#10b981", "failure": "#ef4444", "partial": "#f59e0b", "nodata": "#cbd5e1"}
 
 
+def status_color(status, duration, key):
+    if status in {"failed", "failure"}:
+        return "failure"
+    if status not in {"success", "partial"}:
+        return "nodata"
+    if key == "latency":
+        if duration is None:
+            return "partial" if status == "partial" else "nodata"
+        if duration >= 300:
+            return "failure"
+        if duration >= 160:
+            return "partial"
+    return status
+
+
 def read_entries(log_dir, key):
     if not re.fullmatch(r"[\w-]+", key):
         raise ValueError("Invalid report key.")
@@ -40,24 +55,19 @@ def history_data(entries, now, key):
     colors = []
     known = success = total = 0
     for slot in slots:
-        valid = [status for status, _ in slot if status in {"success", "failed", "failure"}]
+        valid = [status for status, _ in slot if status in {"success", "partial", "failed", "failure"}]
         passed = valid.count("success")
         total += len(slot)
         known += len(valid)
         success += passed
-        if "failed" in valid or "failure" in valid:
-            # Never average a failed member/run into a green or amber block.
+        run_colors = [status_color(status, duration, key) for status, duration in slot]
+        if "failure" in run_colors:
+            # Preserve the worst run, including latency spikes, after recovery.
             color = "failure"
-        elif key == "latency":
-            durations = [duration for status, duration in slot
-                         if status in {"success", "failed", "failure"} and duration is not None]
-            mean = sum(durations) / len(durations) if durations else None
-            if mean is None:
-                color = "failure" if "failed" in valid or "failure" in valid else "nodata"
-            else:
-                color = "success" if mean < 160 else "partial" if mean < 300 else "failure"
+        elif "partial" in run_colors or ("success" in run_colors and "nodata" in run_colors):
+            color = "partial"
         else:
-            color = "success" if valid else "nodata"
+            color = "success" if "success" in run_colors else "nodata"
         colors.append(color)
     return {
         "colors": colors,
@@ -148,12 +158,12 @@ def render_history(report, log_dir="docs/logs", config=None, *, preview=False):
                                "latency" if card["checks"] == ["latency"] else key)
         text((32, top + 19), card["title"], 25, True, fill="#0f172a")
         text((32, top + 56), card.get("description", ""), 18, fill="#475569")
-        color = {"success": "success", "failed": "failure"}.get(status, "nodata")
-        label = {"success": "OPERATIONAL", "failed": "FAILED"}.get(status, "NO DATA AVAILABLE")
+        color = status_color(status, duration, "latency" if card["checks"] == ["latency"] else key)
+        label = {"success": "OPERATIONAL", "failure": "FAILED", "partial": "PARTIAL"}.get(color, "NO DATA AVAILABLE")
         badge_width = draw.textlength(label, font=font(16 * scale, True)) / scale + 24
         left = 968 - badge_width
         rectangle((left, top + 16, 968, top + 46), 15,
-                  fill={"success": "#ecfdf5", "failure": "#fef2f2", "nodata": "#f1f5f9"}[color])
+                  fill={"success": "#ecfdf5", "partial": "#fffbeb", "failure": "#fef2f2", "nodata": "#f1f5f9"}[color])
         text((left + 12, top + 21), label, 16, True,
              fill=COLORS[color] if color != "nodata" else "#475569")
         latest = f"{duration:.1f}s" if duration is not None else "--"
@@ -164,7 +174,7 @@ def render_history(report, log_dir="docs/logs", config=None, *, preview=False):
             left = 32 + block * 31.3
             rectangle((left, top + 94, left + 26, top + 128), 5, fill=COLORS[block_color])
     baseline = 100 + 160 * len(cards)
-    text((28, baseline + 3), "Green: OK   Amber: slow   Red: failed   Gray: no data", 16, fill="#475569")
+    text((28, baseline + 3), "Green: all OK   Amber: partial / slow   Red: failed   Gray: no data", 16, fill="#475569")
     output = io.BytesIO()
     image.save(output, "PNG", optimize=True)
     return [("flame-history.png", output.getvalue())]

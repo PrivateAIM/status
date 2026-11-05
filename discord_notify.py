@@ -92,7 +92,7 @@ def overall_status(statuses):
     down = known.count("failed")
     if down:
         return ("Major outage", 0xEF4444) if down / len(known) >= 0.5 else ("Partial outage", 0xF59E0B)
-    if "failed" in statuses.values():
+    if any(value in {"failed", "partial"} for value in statuses.values()):
         return "Degraded", 0xF59E0B
     if known or statuses.get("login") == "success":
         return "Operational", 0x10B981
@@ -103,7 +103,7 @@ def status_payload(report, dashboard_url, run_url, config=None):
     statuses = report["statuses"]
     cards = display_cards(report, config if config is not None else load_config())
     title, color = overall_status(statuses)
-    symbols = {"success": "OK", "failed": "FAILED", "unknown": "No data"}
+    symbols = {"success": "OK", "partial": "PARTIAL", "failed": "FAILED", "unknown": "No data"}
     fields = []
     for node_group, label in ((False, "Pipeline"), (True, "Nodes")):
         lines = []
@@ -196,10 +196,12 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
     previous = {key: value for key, value in state.get("confirmed_statuses", {}).items() if key not in excluded}
     confirmed = dict(previous)
     confirmed.update({key: value for key, value in report["statuses"].items()
-                      if key not in excluded and value in {"success", "failed"}})
-    old_failures = {key for key, value in previous.items() if value == "failed"}
-    failures = {key for key, value in confirmed.items() if value == "failed"}
+                      if key not in excluded and value in {"success", "partial", "failed"}})
+    old_failures = {key for key, value in previous.items() if value in {"failed", "partial"}}
+    failures = {key for key, value in confirmed.items() if value in {"failed", "partial"}}
     new_failures = failures - old_failures
+    new_failures.update(key for key in failures
+                        if confirmed[key] == "failed" and previous.get(key) == "partial")
     recovery = bool(old_failures) and not failures
     severity = {"No data": 0, "Operational": 0, "Degraded": 1, "Partial outage": 2, "Major outage": 3}
     degraded = severity[overall_status(confirmed)[0]] > severity[overall_status(previous)[0]]
@@ -210,7 +212,7 @@ def notify(report, webhook_url, state_path, dashboard_url="", run_url="", role_i
             alert["flags"] = 4096  # SUPPRESS_NOTIFICATIONS: silent updates and recovery.
         if new_failures:
             names = ", ".join(sorted(new_failures))
-            alert["content"] = f"{STATUS_TITLE}: check failed: {names}."[:1900]
+            alert["content"] = f"{STATUS_TITLE}: check degraded or failed: {names}."[:1900]
             mentions = ([f"<@&{value}>" for value in roles] + [f"<@{value}>" for value in users]) if degraded else []
             if mentions:
                 alert["content"] = " ".join(mentions) + "\n" + alert["content"]
