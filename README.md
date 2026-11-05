@@ -4,7 +4,7 @@
 
 Automated end-to-end health monitoring for the [FLAME](https://privateaim.net) federated learning and analysis platform (staging cluster).
 
-Every 30 minutes, a GitHub Action runs a complete federated analysis round against the FLAME Hub — from login to result retrieval — and publishes the outcome to a static status page via GitHub Pages.
+Every 15 minutes, a GitHub Action runs a complete federated analysis round against the FLAME Hub — from login to result retrieval — and publishes the outcome to a static status page via GitHub Pages.
 
 Maintainer: [Jules Kreuer](https://github.com/not-a-feature)
 
@@ -28,9 +28,8 @@ The results are merged into six step cards and a per-node section:
 | `latency` | Per pair: E2E duration stays below the sum of the per-step budgets. | 600 s |
 
 The five pipeline step cards (`upload`…`latency`) are **aggregated across the parallel pair runs**
-(status merged, duration averaged). A step is green only when every expected pair passed,
-orange when some passed and others failed or were skipped, red when checks ran but none passed,
-and gray when no pair reached the step. Missing expected nodes also prevent green.
+(status merged, duration averaged): green means all expected pairs passed, orange means some
+passed, red means none passed, and gray means none ran.
 The per-node cards at the bottom show each node's own up/down
 and latency; `aggregator-1` counts as up if any of its pairs succeeds. The **overall** badge is the
 aggregation of the node verdicts: all up → operational, some down → partial, all down or `login`
@@ -40,12 +39,10 @@ All work until the next step starts belongs to the current step. In particular, 
 during shared project preparation or master image lookup fail `login`; `upload` and later steps
 remain `unknown`. The login duration includes this shared setup.
 
-If a step fails within a pair run, that run's subsequent steps are recorded as `unknown`.
-These skipped steps count as incomplete coverage when another pair succeeds. An entirely
-unattempted step is shown as "no data" and excluded from uptime statistics. Uptime measures
-fully successful runs; partial runs count as known but not fully successful.
+Failed pair runs skip later steps (`unknown`). Uptime counts fully successful runs;
+partial runs count as unsuccessful, while entirely unattempted steps are excluded.
 
-Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 40 days at 30-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders the last 30 days per check, including run durations.
+Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 21 days at 15-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders up to 30 days per check, including run durations.
 
 ## Setup
 
@@ -114,17 +111,12 @@ Each health check updates one **Staging E2E Status** message with a single histo
 - Execute + Results
 - E2E Latency
 
-The image covers the last 15 hours. If any check in a group fails, that group turns red;
-partial checks or mixed success and no data turn it orange. The dashboard and image retain
-the worst recorded status in each history block, including latency spikes, after recovery.
-Current image badges show the latest run; dashboard badges summarize the last 45 minutes.
-New failures send an alert; recovery sends an all-clear. Each notification replaces the
-previous one, so the channel keeps just the status message and the latest notification.
-The latest notification is refreshed silently on every check, includes individual node
-statuses even when nodes are hidden in the image, and retains unresolved incidents when
-a fresh check returns no data. Its timestamp describes the latest check; history blocks
-can still show earlier outages after a recovery.
-Latency alone does not trigger alerts by default.
+The image covers 15 hours: failed groups are red, partial groups orange. History blocks retain
+the worst status. Image badges show the latest run; dashboard badges cover 45 minutes.
+
+The channel keeps one status message and one notification, both refreshed each check.
+Notifications include node statuses and update silently between incident transitions.
+Only confirmed success clears an incident; no data does not. Latency alerts are disabled by default.
 
 To set it up:
 
