@@ -4,7 +4,7 @@
   "confirmed_statuses": {
     "check_runner": "success",
     "login": "success",
-    "upload": "partial",
+    "upload": "success",
     "distribute": "partial",
     "execute": "partial",
     "node_aggregator-1": "success",
