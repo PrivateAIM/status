@@ -4,7 +4,7 @@
   "confirmed_statuses": {
     "check_runner": "success",
     "login": "success",
-    "upload": "success",
+    "upload": "failed",
     "distribute": "success",
     "execute": "failed",
     "node_aggregator-1": "failed",
@@ -12,5 +12,5 @@
     "node_default-2": "failed",
     "results": "success"
   },
-  "notification_id": "1568655890389798995"
+  "notification_id": "1568658160821211320"
 }
