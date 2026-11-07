@@ -5,12 +5,12 @@
     "check_runner": "success",
     "login": "success",
     "upload": "success",
-    "distribute": "success",
-    "execute": "partial",
-    "node_aggregator-1": "success",
+    "distribute": "partial",
+    "execute": "failed",
+    "node_aggregator-1": "failed",
     "node_default-1": "failed",
-    "node_default-2": "success",
+    "node_default-2": "failed",
     "results": "partial"
   },
-  "notification_id": "1568467085745455235"
+  "notification_id": "1568471389797748819"
 }
