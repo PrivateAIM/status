@@ -145,4 +145,4 @@ Frontend and status-page concept forked from [statsig-io/statuspage](https://git
 
 ## Actions run links
 
-Click any status square to view the contributing checks and their GitHub Actions runs. Hovering provides a quick summary, while pressing Escape or clicking outside closes the popup. Note that older entries and locally run checks may not include a link.
+Hover over or focus any status square to see its contributing checks and GitHub Actions runs. Press Escape or click outside to close the popup. Note that older entries and locally run checks may not include a link.

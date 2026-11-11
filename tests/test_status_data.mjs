@@ -53,7 +53,11 @@ assert.equal(before[0].lastTimestamp, Date.parse("2026-11-05T13:55:00Z"));
 Date.now = () => Date.parse("2026-11-05T14:16:40Z");
 assert.deepEqual(normalizeData(recovered)[0], before[0]);
 
-const square = { dataset: { key: "results" }, className: "" };
+const square = {
+  dataset: { key: "results" },
+  className: "",
+  setAttribute(name, value) { this[name] = value; },
+};
 applySquareData(square, before[0]);
 assert.equal(square.dataset.lastTimestamp, String(Date.parse("2026-11-05T13:55:00Z")));
 assert.equal(square.dataset.status, "success");

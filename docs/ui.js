@@ -143,8 +143,9 @@ export function constructStatusSquare(key, relSlot, slotData) {
   square.dataset.key = key;
   applySquareData(square, slotData);
 
-  square.addEventListener("mouseover", () => showTooltipForSquare(square));
-  square.addEventListener("click", () => showTooltipForSquare(square, true));
+  square.addEventListener("mouseenter", () => showTooltipForSquare(square));
+  square.addEventListener("focus", () => showTooltipForSquare(square));
+  square.addEventListener("click", () => showTooltipForSquare(square));
   return square;
 }
 

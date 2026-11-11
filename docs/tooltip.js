@@ -15,21 +15,20 @@ export function formatCheckTimes(firstTimestamp, lastTimestamp) {
   return firstTimestamp === lastTimestamp ? `Check: ${last}` : `Checks: ${first} – ${last}`;
 }
 
-let pinnedSquare = null;
+let activeSquare = null;
 let initialized = false;
 
 export function closeTooltip(restoreFocus = false) {
-  const square = pinnedSquare;
+  const square = activeSquare;
   if (square) square.setAttribute("aria-expanded", "false");
-  pinnedSquare = null;
   const tooltip = document.getElementById("tooltip");
   if (tooltip) {
     tooltip.classList.remove("is-visible");
-    tooltip.classList.remove("pinned");
     tooltip.setAttribute("aria-hidden", "true");
     tooltip.inert = true;
   }
-  if (restoreFocus && square) square.focus();
+  if (restoreFocus && square) square.focus({ preventScroll: true });
+  activeSquare = null;
 }
 
 export function initTooltip() {
@@ -43,7 +42,7 @@ export function initTooltip() {
     if (event.key === "Escape") closeTooltip(true);
   });
   document.addEventListener("focusin", (event) => {
-    if (pinnedSquare && !event.target.closest("#tooltip") && event.target !== pinnedSquare) closeTooltip();
+    if (activeSquare && !event.target.closest("#tooltip") && event.target !== activeSquare) closeTooltip();
   });
   window.addEventListener("resize", () => closeTooltip());
 }
@@ -87,8 +86,7 @@ function renderRuns(entries) {
   }
 }
 
-export function showTooltip(element, key, color, duration, pinned = false) {
-  if (!pinned && hasTooltipSelection()) return;
+export function showTooltip(element, key, color, duration) {
   const toolTipDiv = document.getElementById("tooltip");
   if (!toolTipDiv) return;
 
@@ -109,13 +107,12 @@ export function showTooltip(element, key, color, duration, pinned = false) {
   }
 
   const details = document.getElementById("tooltipRunDetails");
-  if (details) details.hidden = !pinned;
-  toolTipDiv.classList.toggle("pinned", pinned);
-  toolTipDiv.setAttribute("role", pinned ? "dialog" : "tooltip");
+  if (details) details.hidden = false;
+  toolTipDiv.setAttribute("role", "dialog");
   toolTipDiv.setAttribute("aria-label", "Status and contributing checks");
   toolTipDiv.setAttribute("aria-hidden", "false");
   toolTipDiv.inert = false;
-  if (pinned) renderRuns(element.reportEntries || []);
+  renderRuns(element.reportEntries || []);
 
   const rect = element.getBoundingClientRect();
   const tooltipWidth = toolTipDiv.offsetWidth;
@@ -148,20 +145,14 @@ export function showTooltip(element, key, color, duration, pinned = false) {
   toolTipDiv.classList.add("is-visible");
 }
 
-export function showTooltipForSquare(square, pinned = false) {
-  if (pinnedSquare && !pinned) return;
-  if (pinned) {
-    if (pinnedSquare === square) {
-      closeTooltip();
-      return;
-    }
-    closeTooltip();
-    pinnedSquare = square;
-    square.setAttribute("aria-expanded", "true");
-  }
+export function showTooltipForSquare(square) {
+  // Clicking or focusing the hovered square must not rebuild or reposition it.
+  if (activeSquare === square || hasTooltipSelection()) return;
+  closeTooltip();
+  activeSquare = square;
+  square.setAttribute("aria-expanded", "true");
   const key = square.dataset.key;
   const color = square.dataset.status;
   const duration = square.dataset.duration ? parseFloat(square.dataset.duration) : null;
-  showTooltip(square, key, color, duration, pinned);
-  if (pinned) document.getElementById("tooltipClose")?.focus();
+  showTooltip(square, key, color, duration);
 }
