@@ -4,13 +4,13 @@
   "confirmed_statuses": {
     "check_runner": "success",
     "login": "success",
-    "upload": "partial",
-    "distribute": "partial",
-    "execute": "partial",
+    "upload": "success",
+    "distribute": "success",
+    "execute": "success",
     "node_aggregator-1": "success",
-    "node_default-1": "failed",
+    "node_default-1": "success",
     "node_default-2": "success",
-    "results": "partial"
+    "results": "success"
   },
-  "notification_id": "1569998773533409281"
+  "notification_id": "1570002787834658899"
 }
