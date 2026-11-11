@@ -56,7 +56,7 @@ class PartialStatusTests(unittest.TestCase):
                                    (["unknown"], "nodata"), (["success"], "success")]:
             entries = [(now - timedelta(minutes=index), status, 1) for index, status in enumerate(statuses)]
             self.assertEqual(history_data(entries, now, "execute_results")["colors"][-1], expected)
-        entries = [(now, "success", 30), (now - timedelta(minutes=1), "success", 400)]
+        entries = [(now, "success", 30), (now - timedelta(minutes=1), "success", 401)]
         self.assertEqual(history_data(entries, now, "latency")["colors"][-1], "failure")
         history = history_data([(now, "partial", 1)], now, "results")
         self.assertEqual(history["uptime"], 0)

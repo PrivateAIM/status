@@ -22,8 +22,8 @@ export const CONFIG = {
   
   // Latency thresholds (seconds)
   latency: {
-    successThreshold: 160,
-    partialThreshold: 300
+    successThreshold: 200,
+    partialThreshold: 400
   },
   
   // Uptime thresholds (ratios)

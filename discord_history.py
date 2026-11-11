@@ -21,9 +21,9 @@ def status_color(status, duration, key):
     if key == "latency":
         if duration is None:
             return "partial" if status == "partial" else "nodata"
-        if duration >= 300:
+        if duration > 400:
             return "failure"
-        if duration >= 160:
+        if duration > 200:
             return "partial"
     return status
 

@@ -74,8 +74,8 @@ export function getColor(uptimeVal) {
 
 export function getLatencyColor(durationVal) {
   if (durationVal == null) return "nodata";
-  if (durationVal < CONFIG.latency.successThreshold) return "success";
-  if (durationVal < CONFIG.latency.partialThreshold) return "partial";
+  if (durationVal <= CONFIG.latency.successThreshold) return "success";
+  if (durationVal <= CONFIG.latency.partialThreshold) return "partial";
   return "failure";
 }
 
