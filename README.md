@@ -22,7 +22,7 @@ The results are merged into six step cards and a per-node section:
 | --- | --- | --- |
 | `login` | Authentication, node selection, shared project preparation/cleanup, and master image lookup. Shared, once. | 10 s for authentication and node listing |
 | `upload` | Per pair: analysis creation, code bucket provisioning, and upload of the test script ([`flame_checks/00_test_connection.py`](flame_checks/00_test_connection.py)) as entrypoint. | 60 s per wait |
-| `distribute` | Per pair: analysis image build and distribution to the paired nodes. | 120 s per phase |
+| `distribute` | Per pair: node configuration, configuration locking, analysis image build and distribution to the paired nodes. | 120 s per phase |
 | `execute` | Per pair: execution of the analysis on the paired nodes. | 240 s |
 | `results` | Per pair: download of the result tarball and confirmation that both paired nodes reported `ok`. | 60 s |
 | `latency` | Per pair: E2E duration stays below the sum of the per-step budgets. | 600 s |
@@ -41,6 +41,11 @@ remain `unknown`. The login duration includes this shared setup.
 
 Failed pair runs skip later steps (`unknown`). Uptime counts fully successful runs;
 partial runs count as unsuccessful, while entirely unattempted steps are excluded.
+
+Actions logs identify individual operations within these broad stages, with the compute node,
+analysis ID (once created), and elapsed time. For example, a configuration-lock failure is
+reported as `Lock analysis configuration (configurationLock) failed` during `distribute`.
+Failed pair runs include the original exception type, message, and traceback.
 
 Results are appended as `date, status, duration, run_url` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 21 days at 15-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders up to 30 days per check, including run durations.
 

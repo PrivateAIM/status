@@ -54,7 +54,7 @@ jobs:
         env:
           FLAME_USERNAME: ${{ secrets.FLAME_USERNAME }}
           FLAME_PASSWORD: ${{ secrets.FLAME_PASSWORD }}
-        run: python flame_health_check.py
+        run: python -u flame_health_check.py
 
       - name: Update Discord status and send incident alerts
         if: ${{ always() && !cancelled() }}

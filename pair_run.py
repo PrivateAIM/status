@@ -4,6 +4,7 @@ import uuid
 import json
 import tarfile
 import tempfile
+import traceback
 
 from flame_hub.types import AnalysisBucketType
 
@@ -19,63 +20,69 @@ from config import (
     TIMEOUT_RESULTS_SECONDS,
 )
 from hub_client import fetch_analysis, make_clients
-from step_tracking import timed_step
+from step_tracking import logged_operation, timed_step
 
 
 def _upload(core_client, storage_client, project_id, master_image_id, compute_node):
     # Create the analysis, wait for its CODE bucket, upload the connection test
     # script, and mark it the entrypoint. Returns the created analysis.
     analysis_name = f"HealthCheck-{compute_node.name}-{uuid.uuid4().hex[:8]}"
-    analysis = core_client.create_analysis(
-        name=analysis_name, project_id=project_id, master_image_id=master_image_id
-    )
+    with logged_operation(compute_node.name, "Create analysis"):
+        analysis = core_client.create_analysis(
+            name=analysis_name, project_id=project_id, master_image_id=master_image_id
+        )
+    context = f"{compute_node.name} [analysis={analysis.id}]"
 
-    code_bucket_deadline = time.time() + TIMEOUT_BUCKET_SECONDS
-    code_bucket = None
-    while True:
-        buckets = core_client.find_analysis_buckets(filter={"analysis_id": analysis.id})
-        code_buckets = [b for b in buckets if b.type == AnalysisBucketType.CODE]
-        if len(code_buckets) > 0:
-            code_bucket = code_buckets[0]
-            assert code_bucket.bucket_id is not None, "Bucket ID is missing on CODE bucket."
-            break
-        assert time.time() < code_bucket_deadline, "Timeout waiting for code bucket creation."
-        time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
+    with logged_operation(context, "Wait for CODE bucket provisioning"):
+        code_bucket_deadline = time.time() + TIMEOUT_BUCKET_SECONDS
+        code_bucket = None
+        while True:
+            buckets = core_client.find_analysis_buckets(filter={"analysis_id": analysis.id})
+            code_buckets = [b for b in buckets if b.type == AnalysisBucketType.CODE]
+            if len(code_buckets) > 0:
+                code_bucket = code_buckets[0]
+                assert code_bucket.bucket_id is not None, "Bucket ID is missing on CODE bucket."
+                break
+            assert time.time() < code_bucket_deadline, "Timeout waiting for code bucket creation."
+            time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
 
     script_path = os.path.join("flame_checks", CONNECTION_SCRIPT_NAME)
     assert os.path.exists(script_path), f"Connection test script not found at: {script_path}"
     with open(script_path, "rb") as f:
         script_bytes = f.read()
 
-    upload_response = storage_client.upload_to_bucket(
-        str(code_bucket.bucket_id), {"file_name": CONNECTION_SCRIPT_NAME, "content": script_bytes}
-    )
-    assert len(upload_response) > 0, "Upload response from storage was empty."
+    with logged_operation(context, f"Upload {CONNECTION_SCRIPT_NAME} to CODE bucket"):
+        upload_response = storage_client.upload_to_bucket(
+            str(code_bucket.bucket_id), {"file_name": CONNECTION_SCRIPT_NAME, "content": script_bytes}
+        )
+        assert len(upload_response) > 0, "Upload response from storage was empty."
 
     # The entrypoint flag lives on the hub's analysis-bucket-file record, not on
     # the storage file. The hub mirrors the upload into that record
     # asynchronously, so poll for it instead of trusting a fixed settle time.
-    entrypoint_deadline = time.time() + TIMEOUT_BUCKET_SECONDS
-    while True:
-        bucket_files = core_client.find_analysis_bucket_files(
-            filter={"analysis_bucket_id": code_bucket.id}
-        )
-        entrypoint_files = [f for f in bucket_files if f.path == CONNECTION_SCRIPT_NAME]
-        if len(entrypoint_files) > 0:
-            break
-        assert time.time() < entrypoint_deadline, (
-            f"Timeout waiting for {CONNECTION_SCRIPT_NAME} to register with the analysis."
-        )
-        time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
+    with logged_operation(context, "Wait for uploaded script registration"):
+        entrypoint_deadline = time.time() + TIMEOUT_BUCKET_SECONDS
+        while True:
+            bucket_files = core_client.find_analysis_bucket_files(
+                filter={"analysis_bucket_id": code_bucket.id}
+            )
+            entrypoint_files = [f for f in bucket_files if f.path == CONNECTION_SCRIPT_NAME]
+            if len(entrypoint_files) > 0:
+                break
+            assert time.time() < entrypoint_deadline, (
+                f"Timeout waiting for {CONNECTION_SCRIPT_NAME} to register with the analysis."
+            )
+            time.sleep(BUCKET_POLL_INTERVAL_SECONDS)
 
-    assert len(entrypoint_files) == 1, (
-        f"Expected exactly one entrypoint file record for {CONNECTION_SCRIPT_NAME}."
-    )
+        assert len(entrypoint_files) == 1, (
+            f"Expected exactly one entrypoint file record for {CONNECTION_SCRIPT_NAME}."
+        )
 
-    core_client.update_analysis_bucket_file(
-        analysis_bucket_file_id=entrypoint_files[0].id,
-        is_entrypoint=True,
-    )
+    with logged_operation(context, f"Set {CONNECTION_SCRIPT_NAME} as entrypoint"):
+        core_client.update_analysis_bucket_file(
+            analysis_bucket_file_id=entrypoint_files[0].id,
+            is_entrypoint=True,
+        )
     return analysis
 
 
@@ -101,56 +108,63 @@ def _distribute(core_client, analysis, aggregator, compute_node):
     # The hub seeds an analysis with all project nodes, so reduce it to exactly
     # this pair (aggregator + compute node) before locking config: remove any
     # unrelated node and add either of the pair if missing.
-    required_node_ids = {str(aggregator.id), str(compute_node.id)}
-    analysis_nodes = core_client.find_analysis_nodes(filter={"analysis_id": analysis.id})
-    present_node_ids = {str(an.node_id) for an in analysis_nodes}
-    for analysis_node in analysis_nodes:
-        if str(analysis_node.node_id) not in required_node_ids:
-            core_client.delete_analysis_node(analysis_node.id)
-            print(
-                f"[+] {compute_node.name}: removed unrelated node "
-                f"{analysis_node.node_id} from analysis."
-            )
-    for node_id in required_node_ids:
-        if node_id not in present_node_ids:
-            core_client.create_analysis_node(analysis_id=analysis.id, node_id=node_id)
+    context = f"{compute_node.name} [analysis={analysis.id}]"
+    with logged_operation(context, "Configure aggregator and compute node pair"):
+        required_node_ids = {str(aggregator.id), str(compute_node.id)}
+        analysis_nodes = core_client.find_analysis_nodes(filter={"analysis_id": analysis.id})
+        present_node_ids = {str(an.node_id) for an in analysis_nodes}
+        for analysis_node in analysis_nodes:
+            if str(analysis_node.node_id) not in required_node_ids:
+                core_client.delete_analysis_node(analysis_node.id)
+                print(
+                    f"[+] {compute_node.name}: removed unrelated node "
+                    f"{analysis_node.node_id} from analysis."
+                )
+        for node_id in required_node_ids:
+            if node_id not in present_node_ids:
+                core_client.create_analysis_node(analysis_id=analysis.id, node_id=node_id)
 
-    core_client.send_analysis_command(analysis.id, "configurationLock")
-    core_client.send_analysis_command(analysis.id, "buildStart")
+    with logged_operation(context, "Lock analysis configuration (configurationLock)"):
+        core_client.send_analysis_command(analysis.id, "configurationLock")
+    with logged_operation(context, "Start analysis build (buildStart)"):
+        core_client.send_analysis_command(analysis.id, "buildStart")
 
     # Build and distribution are sequential phases, each allowed its own full
     # budget (mirrored by the 2 * TIMEOUT_MEDIUM_SECONDS term in the latency
     # limit). Sharing one window lets a slow build starve an otherwise healthy
     # distribution.
-    build_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
-    while True:
-        analysis = fetch_analysis(core_client, analysis.id)
-        assert analysis.build_status != "failed", "Analysis build failed."
-        if analysis.build_status == "executed":
-            break
-        assert time.time() < build_deadline, (
-            f"Timeout waiting for build phase "
-            f"(status={analysis.build_status}, progress={analysis.build_progress})."
-        )
-        time.sleep(POLL_INTERVAL_SECONDS)
+    with logged_operation(context, "Wait for analysis build"):
+        build_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
+        while True:
+            analysis = fetch_analysis(core_client, analysis.id)
+            assert analysis.build_status != "failed", "Analysis build failed."
+            if analysis.build_status == "executed":
+                break
+            assert time.time() < build_deadline, (
+                f"Timeout waiting for build phase "
+                f"(status={analysis.build_status}, progress={analysis.build_progress})."
+            )
+            time.sleep(POLL_INTERVAL_SECONDS)
 
-    core_client.send_analysis_command(analysis.id, "distributionStart")
-    distribution_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
-    while True:
-        analysis = fetch_analysis(core_client, analysis.id)
-        assert analysis.distribution_status != "failed", "Analysis distribution failed."
-        if analysis.distribution_status == "executed":
-            break
-        # A phase that never leaves "starting" means the hub accepted the command
-        # but its worker never picked the job up; one that climbs through
-        # "started"/progress and stops is a stalled registry push. The two need
-        # different people to look at them, so record which one it was.
-        assert time.time() < distribution_deadline, (
-            f"Timeout waiting for distribution phase "
-            f"(status={analysis.distribution_status}, progress={analysis.distribution_progress}, "
-            f"registry={analysis.registry_id}) [{_node_states(core_client, analysis)}]"
-        )
-        time.sleep(POLL_INTERVAL_SECONDS)
+    with logged_operation(context, "Start analysis distribution (distributionStart)"):
+        core_client.send_analysis_command(analysis.id, "distributionStart")
+    with logged_operation(context, "Wait for analysis distribution"):
+        distribution_deadline = time.time() + TIMEOUT_MEDIUM_SECONDS
+        while True:
+            analysis = fetch_analysis(core_client, analysis.id)
+            assert analysis.distribution_status != "failed", "Analysis distribution failed."
+            if analysis.distribution_status == "executed":
+                break
+            # A phase that never leaves "starting" means the hub accepted the command
+            # but its worker never picked the job up; one that climbs through
+            # "started"/progress and stops is a stalled registry push. The two need
+            # different people to look at them, so record which one it was.
+            assert time.time() < distribution_deadline, (
+                f"Timeout waiting for distribution phase "
+                f"(status={analysis.distribution_status}, progress={analysis.distribution_progress}, "
+                f"registry={analysis.registry_id}) [{_node_states(core_client, analysis)}]"
+            )
+            time.sleep(POLL_INTERVAL_SECONDS)
 
 
 def _execute(core_client, analysis):
@@ -245,7 +259,8 @@ def run_pair(aggregator, compute_node, project_id, master_image_id) -> dict:
     run_start_time = time.time()
     try:
         with timed_step(record, "upload"):
-            core_client, storage_client = make_clients()
+            with logged_operation(compute_node.name, "Initialize pair clients"):
+                core_client, storage_client = make_clients()
             analysis = _upload(
                 core_client, storage_client, project_id, master_image_id, compute_node
             )
@@ -262,5 +277,9 @@ def run_pair(aggregator, compute_node, project_id, master_image_id) -> dict:
         failed_step = next(
             (s for s, v in record["step_status"].items() if v == "failed"), "upload"
         )
-        print(f"[!] {compute_node.name}: pair run failed at '{failed_step}': {exc}")
+        print(
+            f"[!] {compute_node.name}: pair run failed during stage '{failed_step}': {exc}\n"
+            f"{traceback.format_exc()}",
+            flush=True,
+        )
     return record
