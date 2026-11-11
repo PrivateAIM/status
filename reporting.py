@@ -8,6 +8,16 @@ LOG_DIR = os.path.join("docs", "logs")
 MAX_LOG_LINES = 2000
 
 
+def get_run_url() -> str:
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    if not repository or not run_id:
+        return ""
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+    return f"{server}/{repository}/actions/runs/{run_id}/attempts/{attempt}"
+
+
 def append_log(key: str, status: str, duration: float | None, date_str: str):
     os.makedirs(LOG_DIR, exist_ok=True)
     log_path = os.path.join(LOG_DIR, f"{key}_report.log")
@@ -21,7 +31,7 @@ def append_log(key: str, status: str, duration: float | None, date_str: str):
     # the new entry appended below.
     existing_lines = existing_lines[-(MAX_LOG_LINES - 1):]
     duration_str = f"{duration:.2f}" if duration is not None else ""
-    existing_lines.append(f"{date_str}, {status}, {duration_str}\n")
+    existing_lines.append(f"{date_str}, {status}, {duration_str}, {get_run_url()}\n")
 
     with open(log_path, "w", encoding="utf-8") as f:
         f.writelines(existing_lines)

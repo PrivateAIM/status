@@ -535,6 +535,8 @@ body.dark-theme .res-btn.active {
 }
 
 .statusSquare {
+  border: 0;
+  padding: 0;
   border-radius: 4px;
   height: 32px;
   min-width: 6px;
@@ -775,3 +777,13 @@ body.dark-theme .tooltip {
     height: 24px;
   }
 }
+
+.statusSquare:focus-visible { outline: 2px solid var(--text-main); outline-offset: 3px; }
+.tooltip.pinned { pointer-events: auto; }
+.tooltip-runs-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--text-main); }
+#tooltipClose { cursor: pointer; border: 1px solid var(--border-color); border-radius: 4px; background: transparent; color: var(--text-main); padding: 4px 8px; }
+.tooltip-runs { list-style: none; padding: 0; margin: 8px 0 0; max-height: min(240px, 35vh); overflow-y: auto; }
+.tooltip-runs li { padding: 8px 0; border-top: 1px solid var(--border-color); font-size: 12px; line-height: 1.5; color: var(--text-main); }
+.tooltip-runs a { color: var(--text-main); text-decoration: underline; }
+.tooltip-run-meta { display: block; color: var(--text-muted); }
+.tooltip.above .tooltipArrow { top: 100%; bottom: auto; border-bottom: 0; border-top: 6px solid var(--tooltip-arrow-color); }

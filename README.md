@@ -42,7 +42,7 @@ remain `unknown`. The login duration includes this shared setup.
 Failed pair runs skip later steps (`unknown`). Uptime counts fully successful runs;
 partial runs count as unsuccessful, while entirely unattempted steps are excluded.
 
-Results are appended as `date, status, duration` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 21 days at 15-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders up to 30 days per check, including run durations.
+Results are appended as `date, status, duration, run_url` lines to `docs/logs/<check>_report.log` (capped at 2000 lines, ≈ 21 days at 15-minute intervals) and committed back to the repository. The frontend (`docs/index.html` / `docs/index.js`) renders up to 30 days per check, including run durations.
 
 ## Setup
 
@@ -142,3 +142,7 @@ latency alerts. The workflow handles message IDs and notification history automa
 ## Credits
 
 Frontend and status-page concept forked from [statsig-io/statuspage](https://github.com/statsig-io/statuspage).
+
+## Actions run links
+
+Click any status square to view the contributing checks and their GitHub Actions runs. Hovering provides a quick summary, while pressing Escape or clicking outside closes the popup. Note that older entries and locally run checks may not include a link.

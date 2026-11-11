@@ -1,7 +1,7 @@
 import { CONFIG, getStatusText } from "./constants.js";
 import { state } from "./state.js";
 import { normalizeData, parseRows, getSlotMs } from "./data.js";
-import { showTooltipForSquare } from "./tooltip.js";
+import { showTooltipForSquare, closeTooltip } from "./tooltip.js";
 
 // ─── DOM Helpers ────────────────────────────────────────────────────────
 export function create(tag, className) {
@@ -125,6 +125,8 @@ export function applySquareData(square, slotData) {
   const durationVal = slotData ? slotData.duration : null;
   const color = getReportColor(key, uptimeVal, slotData?.maxDuration ?? null);
 
+  square.reportEntries = slotData?.entries ?? [];
+  square.setAttribute("aria-label", `${getDisplayTitle(key)}: ${getStatusText(color)}. Show contributing checks`);
   setClass(square, "statusSquare " + color);
   if (square.dataset.status !== color) square.dataset.status = color;
   const duration = durationVal !== null && durationVal !== undefined ? String(durationVal) : "";
@@ -142,7 +144,7 @@ export function constructStatusSquare(key, relSlot, slotData) {
   applySquareData(square, slotData);
 
   square.addEventListener("mouseover", () => showTooltipForSquare(square));
-  square.addEventListener("mousedown", () => showTooltipForSquare(square));
+  square.addEventListener("click", () => showTooltipForSquare(square, true));
   return square;
 }
 
@@ -272,6 +274,7 @@ export async function genReportLog(container, key, url, desc, referenceTime) {
 }
 
 export async function genAllReports(refresh = false) {
+  closeTooltip();
   const reportsEl = document.getElementById("reports");
   if (!reportsEl) return;
   const nodeReportsEl = document.getElementById("node-reports");

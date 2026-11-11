@@ -76,23 +76,33 @@
       </main>
       
       <!-- Tooltip -->
-      <div id="tooltip" class="tooltip" role="tooltip">
+      <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true" inert>
         <div id="tooltipArrow" class="tooltipArrow"></div>
         <div class="tooltip-header">
           <span id="tooltipDateTime" class="tooltipDateTime"></span>
           <span id="tooltipStatus" class="tooltipStatus"></span>
         </div>
         <div id="tooltipDescription" class="tooltipDescription"></div>
+        <div id="tooltipRunDetails" hidden>
+          <div class="tooltip-runs-header">
+            <strong>Contributing checks</strong>
+            <button id="tooltipClose" type="button" aria-label="Close run details">Close</button>
+          </div>
+          <ul id="tooltipRuns" class="tooltip-runs"></ul>
+        </div>
       </div>
       
       <!-- Templates (hidden) -->
       <div id="templates" style="display: none">
         <!-- Single status square -->
-        <div
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded="false"
           id="statusSquareTemplate"
           class="statusSquare $color"
           data-status="$color"
-        ></div>
+        ></button>
         
         <!-- Row template -->
         <div id="statusLineTemplate" class="statusLine"></div>

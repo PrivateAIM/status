@@ -46,6 +46,7 @@ export function parseRows(rows) {
     else if (resultStr == "failed" || resultStr == "failure") result = 0;
 
     entries.push({
+      runUrl: parts[3] ? parts[3].trim() : null,
       timestamp: timestamp,
       result: result,
       duration: duration !== null && !isNaN(duration) ? duration : null,
@@ -98,6 +99,7 @@ export function normalizeData(statusLines, referenceTime) {
   const summarize = entries => {
     const timing = durations(entries);
     return {
+      entries: entries.slice().sort((a, b) => b.timestamp - a.timestamp),
       uptime: worstResult(entries.map(entry => entry.result)),
       duration: getAverage(timing),
       maxDuration: timing.length ? Math.max(...timing) : null,
