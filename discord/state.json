@@ -8,9 +8,9 @@
     "distribute": "partial",
     "execute": "partial",
     "node_aggregator-1": "success",
-    "node_default-1": "success",
-    "node_default-2": "failed",
+    "node_default-1": "failed",
+    "node_default-2": "success",
     "results": "partial"
   },
-  "notification_id": "1572479111333675080"
+  "notification_id": "1572483106143740039"
 }
