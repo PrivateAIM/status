@@ -6,11 +6,11 @@
     "login": "success",
     "upload": "success",
     "distribute": "success",
-    "execute": "success",
+    "execute": "partial",
     "node_aggregator-1": "success",
-    "node_default-1": "success",
+    "node_default-1": "failed",
     "node_default-2": "success",
-    "results": "success"
+    "results": "partial"
   },
-  "notification_id": "1573551208663359569"
+  "notification_id": "1573566477322166393"
 }
