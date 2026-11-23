@@ -3,14 +3,14 @@
   "message_id": "1567544856602087595",
   "confirmed_statuses": {
     "check_runner": "success",
-    "login": "failed",
-    "upload": "success",
-    "distribute": "success",
-    "execute": "success",
+    "login": "success",
+    "upload": "partial",
+    "distribute": "partial",
+    "execute": "partial",
     "node_aggregator-1": "success",
     "node_default-1": "success",
-    "node_default-2": "success",
-    "results": "success"
+    "node_default-2": "failed",
+    "results": "partial"
   },
-  "notification_id": "1574565963066769544"
+  "notification_id": "1574570206771019968"
 }
