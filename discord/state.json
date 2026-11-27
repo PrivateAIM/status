@@ -4,8 +4,8 @@
   "confirmed_statuses": {
     "check_runner": "success",
     "login": "success",
-    "upload": "failed",
-    "distribute": "failed",
+    "upload": "success",
+    "distribute": "success",
     "execute": "failed",
     "node_aggregator-1": "failed",
     "node_default-1": "failed",
